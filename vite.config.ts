@@ -7,6 +7,7 @@ export default defineConfig({
   build: { outDir: '../../dist/web', emptyOutDir: true },
   server: {
     port: 5173,
-    proxy: { '/api': 'http://localhost:3000' },
+    // '/api/' med snedstreck så att modulen /api.ts inte proxas till API-servern
+    proxy: { '/api/': 'http://localhost:3000' },
   },
 });
