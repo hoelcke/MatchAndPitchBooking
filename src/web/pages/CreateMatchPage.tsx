@@ -8,7 +8,7 @@ import { api } from '../api';
 import { useAction, useApi } from '../hooks';
 import { useSession } from '../session';
 import { RequireUser } from '../components/RequireUser';
-import { ErrorBox, Field, Info, TimeInput, endTimeLabel, teamLabel } from '../components/ui';
+import { ErrorBox, Field, Info, endTimeLabel, teamLabel } from '../components/ui';
 
 type FacilityWithPitches = Facility & { pitches: Pitch[] };
 
@@ -107,7 +107,7 @@ function CreateMatchForm() {
   const timeFields = (
     <div className="two">
       <Field label={weekend ? 'Önskad starttid' : 'Starttid'}>
-        <TimeInput label={weekend ? 'Önskad starttid' : 'Starttid'} value={f[startKey]} onChange={(v) => set(startKey, v)} />
+        <input type="time" step={300} required value={f[startKey]} onChange={(e) => set(startKey, e.target.value)} />
       </Field>
       <Field label="Längd (min)" hint={`Slutar ${endTimeLabel(f[startKey], f.durationMinutes)}`}>
         <input type="number" min={10} max={180} step={5} required value={f.durationMinutes} onChange={(e) => set('durationMinutes', Number(e.target.value))} />

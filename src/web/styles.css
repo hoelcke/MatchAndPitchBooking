@@ -133,7 +133,7 @@ code { font-size: 0.85em; word-break: break-all; }
 
 /* ---------- Formulär ---------- */
 .form { display: grid; gap: 0.85rem; }
-.field { display: grid; gap: 0.3rem; }
+.field { display: grid; gap: 0.3rem; align-content: start; }
 .field-label { font-weight: 600; font-size: 0.9rem; }
 .field-hint { font-size: 0.82rem; color: #7a5b00; }
 input, select, textarea {
@@ -141,6 +141,8 @@ input, select, textarea {
   width: 100%; min-width: 0; padding: 0.6rem 0.7rem; border: 1px solid var(--border); border-radius: 8px; background: #fff; color: var(--text); min-height: 44px;
 }
 input[type='checkbox'], input[type='radio'] { width: auto; min-height: 0; }
+/* Datum- och tidsfält är annars högre än övriga fält i Chrome. */
+input[type='date'], input[type='time'] { height: 44.4px; padding-top: 0; padding-bottom: 0; }
 fieldset { border: 0; padding: 0; margin: 0; display: grid; gap: 0.85rem; min-width: 0; }
 legend { font-weight: 700; margin-bottom: 0.5rem; padding: 0; }
 .two { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
@@ -181,5 +183,3 @@ th { font-size: 0.8rem; color: var(--muted); }
 .mail li { border-bottom: 1px solid var(--border); padding: 0.4rem 0; }
 .mail summary { cursor: pointer; }
 
-.time-input { display: inline-flex; align-items: center; gap: 0.3rem; }
-.time-input select { width: auto; min-width: 4.5rem; }
