@@ -37,13 +37,12 @@ const input = (over: Partial<matches.CreateOwnSlotInput> = {}): matches.CreateOw
   pitchId,
   date: '2026-10-20',
   startTime: '17:30',
-  endTime: '18:45',
   gameFormat: '7v7_LARGE',
   birthYear: 2015,
   category: 'BOYS',
   openToAdjacentBirthYears: false,
   matchLevel: 'MEDIUM',
-  durationMinutes: 60,
+  durationMinutes: 75,
   referee: 'HOME_ARRANGES',
   kitColorHome: 'Blå',
   ...over,
@@ -75,9 +74,16 @@ describe('A2 / AC-101.3: skapa match i Spår 2', () => {
     expect(() => matches.createOwnSlotMatch(ctx, anna, input({ homeTeamId: hamTeamId }))).toThrow(/IFK Lidingö/);
   });
 
-  it('kräver telefonnummer (BR-17) och att sluttid är efter starttid', () => {
+  it('kräver telefonnummer (BR-17) och en längd som slutar samma dag', () => {
     expect(() => matches.createOwnSlotMatch(ctx, lena, input({ phone: '' }))).toThrow(/Telefonnummer/);
-    expect(() => matches.createOwnSlotMatch(ctx, lena, input({ endTime: '17:00' }))).toThrow(/Sluttiden/);
+    expect(() => matches.createOwnSlotMatch(ctx, lena, input({ durationMinutes: 200 }))).toThrow(/10–180 minuter/);
+    expect(() => matches.createOwnSlotMatch(ctx, lena, input({ startTime: '23:30', durationMinutes: 60 }))).toThrow(/samma dag/);
+  });
+
+  it('sluttiden är starttid plus längd', () => {
+    const m = matches.createOwnSlotMatch(ctx, lena, input({ durationMinutes: 60 }));
+    expect(m.venue.endTime).toBe('2026-10-20T16:30:00Z');
+    expect(m.durationMinutes).toBe(60);
   });
 
   it('gör ingen överlappskontroll (BR-02)', () => {

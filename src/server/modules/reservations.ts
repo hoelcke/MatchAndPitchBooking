@@ -11,7 +11,7 @@ import type {
   TeamCategory,
   User,
 } from '../../shared/types.js';
-import { addDaysToDate, formatDateTime, localToUtc } from '../../shared/time.js';
+import { addDaysToDate, addMinutes, formatDateTime, localToUtc, utcToLocal } from '../../shared/time.js';
 import { all, newId, one, run, tx, type SqlParam } from '../infra/db.js';
 import { audit, SYSTEM_USER } from '../infra/audit.js';
 import { emit } from '../infra/outbox.js';
@@ -267,7 +267,8 @@ function onClosed(ctx: Ctx, event: OutboxEvent, to: ReservationStatus, rule: str
 export interface AllocateInput {
   pitchId: string;
   startTime: string; // HH:mm lokalt på det begärda datumet
-  endTime: string;
+  /** Längd i minuter. Utelämnad: samma längd som den önskade tiden. */
+  durationMinutes?: number;
   /** AC-201.2: överlapp ger en varning som kansliet kan åsidosätta. */
   overrideOverlap?: boolean;
 }
@@ -297,6 +298,12 @@ function findOverlaps(ctx: Ctx, pitchId: string, startTime: string, endTime: str
   });
 }
 
+/** Längden på den önskade tiden i minuter, t.ex. 60 för "10:00-11:00". */
+export function requestedMinutes(res: Pick<ReservationEntity, 'requestedDate' | 'timeWindow'>): number {
+  const [from, to] = res.timeWindow.split('-');
+  return (Date.parse(localToUtc(res.requestedDate, to)) - Date.parse(localToUtc(res.requestedDate, from))) / 60_000;
+}
+
 /** B2 / AC-201.2: kansliet tilldelar plan. */
 export function allocatePitch(ctx: Ctx, user: User, reservationId: string, input: AllocateInput): ReservationEntity {
   return tx(ctx.db, () => {
@@ -308,11 +315,13 @@ export function allocatePitch(ctx: Ctx, user: User, reservationId: string, input
     const venue = getPitchWithFacility(ctx, String(input.pitchId ?? ''));
     if (!venue || !venue.pitch.active || !venue.facility.active) throw badRequest('Välj en aktiv plan ur listan');
     if (!venue.pitch.supportedFormats.includes(res.gameFormat)) throw badRequest('Planen stödjer inte den begärda spelformen');
-    if (!/^\d{2}:\d{2}$/.test(input.startTime ?? '') || !/^\d{2}:\d{2}$/.test(input.endTime ?? ''))
-      throw badRequest('Start- och sluttid måste anges');
+    if (!/^\d{2}:\d{2}$/.test(input.startTime ?? '')) throw badRequest('Starttid måste anges');
+    const durationMinutes = input.durationMinutes === undefined ? requestedMinutes(res) : Number(input.durationMinutes);
+    if (!Number.isInteger(durationMinutes) || durationMinutes < 10 || durationMinutes > 180)
+      throw badRequest('Längden måste vara 10–180 minuter');
     const startTime = localToUtc(res.requestedDate, input.startTime);
-    const endTime = localToUtc(res.requestedDate, input.endTime);
-    if (endTime <= startTime) throw badRequest('Sluttiden måste vara efter starttiden');
+    const endTime = addMinutes(startTime, durationMinutes);
+    if (utcToLocal(endTime).date !== res.requestedDate) throw badRequest('Tiden måste sluta samma dag');
 
     const overlaps = findOverlaps(ctx, venue.pitch.id, startTime, endTime, res.id);
     if (overlaps.length > 0 && !input.overrideOverlap) {

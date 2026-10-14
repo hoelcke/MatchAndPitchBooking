@@ -35,14 +35,13 @@ const input = (over: Partial<matches.CreateWeekendSlotInput> = {}): matches.Crea
   homeTeamId,
   phone: '+46701112233',
   date: '2026-11-07',
-  windowStart: '10:00',
-  windowEnd: '13:00',
+  startTime: '10:00',
   gameFormat: '7v7_LARGE',
   birthYear: 2015,
   category: 'BOYS',
   openToAdjacentBirthYears: true,
   matchLevel: 'MEDIUM',
-  durationMinutes: 60,
+  durationMinutes: 90,
   referee: 'HOME_ARRANGES',
   kitColorHome: 'Blå',
   ...over,
@@ -66,7 +65,7 @@ function requested(over: Partial<matches.CreateWeekendSlotInput> = {}) {
 /** Kansliet tilldelar plan och Process A publicerar matchen. */
 function published(over: Partial<matches.CreateWeekendSlotInput> = {}) {
   const { match, reservation } = requested(over);
-  reservations.allocatePitch(ctx, office, reservation.id, { pitchId, startTime: '10:00', endTime: '11:30' });
+  reservations.allocatePitch(ctx, office, reservation.id, { pitchId, startTime: '10:00', durationMinutes: 90 });
   dispatch();
   return { match: matches.getMatch(ctx, match.id)!, reservation: reservationFor(match.id) };
 }
@@ -95,7 +94,7 @@ describe('A1 / FR-A-101: skapa match i Spår 1', () => {
       homeTeamId,
       clubName: 'IFK Lidingö',
       requestedDate: '2026-11-07',
-      preferredTimeWindow: '10:00-13:00',
+      preferredTimeWindow: '10:00-11:30',
       timeZone: 'Europe/Stockholm',
       gameFormat: '7v7_LARGE',
     });
@@ -129,15 +128,17 @@ describe('A1 / FR-A-101: skapa match i Spår 1', () => {
     expect(() => matches.createWeekendSlotMatch(ctx, per, input())).toThrow(/inte godkänd/);
   });
 
-  it('kräver ett giltigt tidsfönster', () => {
-    expect(() => matches.createWeekendSlotMatch(ctx, lena, input({ windowEnd: '09:00' }))).toThrow(/Tidsfönstrets slut/);
+  it('önskad tid är starttid plus längd och måste sluta samma dag', () => {
+    expect(() => matches.createWeekendSlotMatch(ctx, lena, input({ startTime: '23:30' }))).toThrow(/samma dag/);
+    const m = matches.createWeekendSlotMatch(ctx, lena, input({ durationMinutes: 60 }));
+    expect(m.venue.endTime).toBe('2026-11-07T10:00:00Z');
   });
 });
 
 describe('B2 / A3 / FR-B-201: kansliet tilldelar plan', () => {
   it('AC-201.2 / AC-102.1: tilldelning publicerar matchen med plan och tid', () => {
     const { match, reservation } = requested();
-    const r = reservations.allocatePitch(ctx, office, reservation.id, { pitchId, startTime: '10:00', endTime: '11:30' });
+    const r = reservations.allocatePitch(ctx, office, reservation.id, { pitchId, startTime: '10:00', durationMinutes: 90 });
     expect(r.status).toBe('RESERVED');
     expect(status(match.id)).toBe('RESERVATION_REQUESTED'); // A ändras först när eventet levererats
 
@@ -162,18 +163,24 @@ describe('B2 / A3 / FR-B-201: kansliet tilldelar plan', () => {
     expect(auditRows(match.id)).toEqual(['(start) -> RESERVATION_REQUESTED (A1)', 'RESERVATION_REQUESTED -> PUBLISHED (A3)']);
   });
 
+  it('utan angiven längd tilldelas samma längd som den önskade tiden', () => {
+    const { reservation } = requested({ durationMinutes: 75 });
+    const r = reservations.allocatePitch(ctx, office, reservation.id, { pitchId, startTime: '12:00' });
+    expect(r.allocatedPitch).toMatchObject({ startTime: '2026-11-07T11:00:00Z', endTime: '2026-11-07T12:15:00Z' });
+  });
+
   it('erbjuder bara planer som stödjer spelformen', () => {
     const { reservation } = requested();
     expect(() =>
-      reservations.allocatePitch(ctx, office, reservation.id, { pitchId: smallPitchId, startTime: '10:00', endTime: '11:30' }),
+      reservations.allocatePitch(ctx, office, reservation.id, { pitchId: smallPitchId, startTime: '10:00', durationMinutes: 90 }),
     ).toThrow(/stödjer inte/);
   });
 
   it('överlapp på samma plan och tid ger en varning som kan åsidosättas', () => {
     published();
-    const second = requested({ windowStart: '11:00', windowEnd: '12:00' });
+    const second = requested({ startTime: '11:00', durationMinutes: 60 });
     const allocate = (overrideOverlap?: boolean) =>
-      reservations.allocatePitch(ctx, office, second.reservation.id, { pitchId, startTime: '11:00', endTime: '12:00', overrideOverlap });
+      reservations.allocatePitch(ctx, office, second.reservation.id, { pitchId, startTime: '11:00', durationMinutes: 60, overrideOverlap });
     expect(() => allocate()).toThrow(/redan bokad/);
     expect(reservationFor(second.match.id).status).toBe('REQUESTED');
     expect(allocate(true).status).toBe('RESERVED');
@@ -185,7 +192,7 @@ describe('B2 / A3 / FR-B-201: kansliet tilldelar plan', () => {
     matches.cancelMatch(ctx, lena, first.match.id);
     dispatch();
     const second = requested();
-    expect(reservations.allocatePitch(ctx, office, second.reservation.id, { pitchId, startTime: '10:00', endTime: '11:30' }).status).toBe('RESERVED');
+    expect(reservations.allocatePitch(ctx, office, second.reservation.id, { pitchId, startTime: '10:00', durationMinutes: 90 }).status).toBe('RESERVED');
   });
 
   it('AC-201.3 / B4: ett ärende som hemmalaget avbokat kan inte tilldelas', () => {
@@ -193,7 +200,7 @@ describe('B2 / A3 / FR-B-201: kansliet tilldelar plan', () => {
     expect(matches.cancelMatch(ctx, lena, match.id).status).toBe('CANCELLED'); // A5
     dispatch();
     expect(reservationFor(match.id).status).toBe('WITHDRAWN_BY_HOME');
-    expect(() => reservations.allocatePitch(ctx, office, reservation.id, { pitchId, startTime: '10:00', endTime: '11:30' })).toThrow(
+    expect(() => reservations.allocatePitch(ctx, office, reservation.id, { pitchId, startTime: '10:00', durationMinutes: 90 })).toThrow(
       /avbokat/,
     );
   });
@@ -201,7 +208,7 @@ describe('B2 / A3 / FR-B-201: kansliet tilldelar plan', () => {
   it('AC-105.2: sent RESERVATION_RESERVED till avbokad match ignoreras och planen frigörs', () => {
     const { match, reservation } = requested();
     matches.cancelMatch(ctx, lena, match.id); // RESERVATION_WITHDRAWN ligger kvar i outboxen
-    reservations.allocatePitch(ctx, office, reservation.id, { pitchId, startTime: '10:00', endTime: '11:30' });
+    reservations.allocatePitch(ctx, office, reservation.id, { pitchId, startTime: '10:00', durationMinutes: 90 });
     dispatch();
     expect(status(match.id)).toBe('CANCELLED');
     expect(auditRows(match.id)).toContain('IGNORED RESERVATION_RESERVED (status CANCELLED)');
@@ -227,7 +234,7 @@ describe('B3 / A4 / FR-B-204: kansliet avslår', () => {
       status: 'REJECTED_BY_OFFICE',
       decisionReason: 'Inga lediga planer för 7 mot 7 stor den helgen',
     });
-    expect(() => reservations.allocatePitch(ctx, office, reservation.id, { pitchId, startTime: '10:00', endTime: '11:30' })).toThrow(
+    expect(() => reservations.allocatePitch(ctx, office, reservation.id, { pitchId, startTime: '10:00', durationMinutes: 90 })).toThrow(
       /redan hanterad/,
     );
   });
@@ -276,7 +283,7 @@ describe('B7 / A10 / FR-B-202: 14-dagarsregeln', () => {
   it('AC-202.1: ingen påminnelse om planen tilldelades efter påminnelsetidpunkten', () => {
     const { reservation } = requested();
     ctx.clock.set('2026-10-21T08:00:00Z');
-    reservations.allocatePitch(ctx, office, reservation.id, { pitchId, startTime: '10:00', endTime: '11:30' });
+    reservations.allocatePitch(ctx, office, reservation.id, { pitchId, startTime: '10:00', durationMinutes: 90 });
     ctx.clock.set('2026-10-22T08:00:00Z');
     expect(reservations.runReservationDeadlines(ctx).reminders).toBe(0);
   });
