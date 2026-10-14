@@ -85,7 +85,7 @@ erDiagram
         TEXT referee
         TEXT kit_color_home
         TEXT status "RESERVATION_REQUESTED | PUBLISHED | MATCH_CONFIRMED | COMPLETED | CANCELLED | EXPIRED"
-        TEXT reservation_id
+        TEXT reservation_id "logisk -> reservations (Spår 1)"
         INTEGER inquiries_count
         INTEGER is_urgent
         TEXT completed_confirmed_at
@@ -100,6 +100,30 @@ erDiagram
         TEXT leader_user_id FK
         TEXT contact "JSON LeaderContact"
         TEXT status "ACTIVE | WITHDRAWN | SELECTED | REJECTED"
+        TEXT created_at
+        TEXT updated_at
+    }
+
+    reservations {
+        TEXT id PK
+        TEXT match_id UK "logisk -> matches"
+        TEXT home_team_id FK
+        TEXT requested_date "YYYY-MM-DD lokalt, lör/sön"
+        TEXT time_window "lokal tid, t.ex. 10:00-13:00"
+        TEXT game_format
+        INTEGER birth_year
+        TEXT category
+        TEXT facility_id FK "nullable"
+        TEXT pitch_id FK "nullable"
+        TEXT facility_name "kopia"
+        TEXT pitch_name "kopia"
+        TEXT start_time
+        TEXT end_time
+        TEXT opponent "JSON från RESERVATION_ACCEPTED"
+        TEXT status "REQUESTED | RESERVED | ACCEPTED | COMPLETED | REJECTED_BY_OFFICE | REVOKED_BY_DEADLINE | CANCELLED_BY_OFFICE | WITHDRAWN_BY_HOME | CLOSED_EXPIRED"
+        TEXT decision_reason
+        TEXT deadline_at "14-dagarsfristen i UTC"
+        TEXT reserved_at
         TEXT created_at
         TEXT updated_at
     }
@@ -177,6 +201,9 @@ erDiagram
     matches ||--o{ fair_play_reviews : "bedöms i"
     teams ||--o{ fair_play_reviews : "bedömer"
     teams ||--o{ fair_play_reviews : "bedöms"
+    teams ||--o{ reservations : "begär helgtid"
+    facilities |o--o{ reservations : "tilldelas"
+    pitches |o--o{ reservations : "tilldelas"
 
     %% Logiska kopplingar utan REFERENCES
     users |o..o{ team_memberships : "beslutar om"
@@ -186,6 +213,7 @@ erDiagram
     outbox_events ||..o{ processed_events : "behandlas som"
     users ||..o{ audit_log : "loggas"
     matches ||..o{ reminders_sent : "påminnelse"
+    matches ||..o| reservations : "Spår 1 (via outbox)"
 ```
 
 `email_outbox` står fristående: rader identifieras bara av mottagarens e-postadress.

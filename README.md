@@ -2,10 +2,17 @@
 
 Webbapplikation för träningsmatcher enligt [kravspecifikationen v1.1.1](docs/kravspecifikation-v1.1.1.md).
 
-**Första utkastet täcker Spår 2:** hemmalaget har redan en egen träningstid, väljer plan ur masterdata
-och publicerar matchen direkt på Matchbörsen. Kansliet behöver inte tillfrågas. Hela kedjan efter
-publiceringen ingår: intresseanmälan, val av motståndare, återbud, avbokning, utgång, "Match genomförd"
-och Fair Play-recensioner med lagprofiler.
+Utkastet täcker båda spåren:
+
+- **Spår 1 (ny helgtid):** hemmalaget begär en lördag eller söndag minst 21 dagar fram. Förfrågan hamnar i
+  kansliets kö (Process B), kansliet tilldelar plan eller avslår, och matchen publiceras när planen är
+  tilldelad. 14-dagarsregeln återkallar tiden automatiskt om ingen motståndare valts, och kansliet kan
+  ställa in en bokning.
+- **Spår 2 (egen träningstid):** hemmalaget väljer plan ur masterdata och publicerar matchen direkt.
+  Kansliet behöver inte tillfrågas.
+
+Hela kedjan efter publiceringen ingår: intresseanmälan, val av motståndare, återbud, avbokning, utgång,
+"Match genomförd" och Fair Play-recensioner med lagprofiler.
 
 ## Kom igång
 
@@ -28,11 +35,11 @@ Databasen (`data/matchborsen.db`) skapas och fylls med testdata vid första star
 | Erik Djurman | Djurgårdens IF P2016 (externt) | BR-09 med ±1 år |
 | Sara Täby | Täby FK F2014 (externt) | Flicklag |
 | Nora Ny | Ny ledare utan lag | Skapa lagprofil |
-| Karin Kansli | Kansli | Godkänna ledarkopplingar, masterdata |
+| Karin Kansli | Kansli | Kö för helgtider (Spår 1), godkänna ledarkopplingar, masterdata |
 | Adam Admin | Administratör | Läsa enskilda recensioner |
 
 **Dev-sidan** (`/dev`) har en tidsmaskin som flyttar serverns klocka framåt och kör schemaläggaren, så att
-starttid, 48-timmarsfristen och 7-dagarsfristen kan provas direkt. Där finns också utkorgen (all e-post
+starttid, 14-dagarsregeln, 48-timmarsfristen och 7-dagarsfristen kan provas direkt. Där finns också utkorgen (all e-post
 loggas i stället för att skickas), outbox-event och revisionsloggen.
 
 Övriga kommandon:
@@ -63,6 +70,7 @@ src/
       identity.ts    Konton, sessioner, lag, ledarkopplingar (FR-U)
       masterdata.ts  Anläggningar och planer (FR-B-207)
       matches.ts     Process A, tillståndsmaskinen i 3.1
+      reservations.ts  Process B, tillståndsmaskinen i 3.2 (Spår 1)
       fairplay.ts    Process C och lagprofil (3.3, BR-13)
     runtime.ts       Outbox-dispatcher, e-postleverans, schemaläggare
     app.ts           REST-API (Express)
@@ -94,23 +102,23 @@ bakgrundsprocess var 5:e sekund, akuta först. `ConsoleEmailSender` byts mot en 
 
 | Krav | Status |
 | :-- | :-- |
+| A1, AC-101.1/101.2/101.4/101.5, BR-01, BR-06 | Skapa match i Spår 1 (helgtid via kansliet) |
 | A2, AC-101.3, AC-101.5, BR-02, BR-07, BR-08, BR-17 | Skapa match i Spår 2 |
+| B1–B12, FR-B-201–206, A3–A5, A10, A11 | Kansliets kö: tilldela plan (överlappsvarning), avslå, ställa in, livscykel |
+| BR-03, BR-04, FR-B-202 | 14-dagarsregeln med påminnelse 18 dagar före, fristen räknas inte om efter återbud |
 | FR-A-102, AC-102.2/102.3 | Börsen med filter, gäster ser inga kontaktuppgifter |
 | A6, FR-A-103, BR-09, BR-15, BR-16 | Intresseanmälan, val, tillbakadragande, kappslöpning |
 | A7, FR-A-104, BR-04 | Återbud (akut e-post, röd flagga) |
 | A8, A9, FR-A-105, BR-10 | Avbokning, ingen redigering |
-| A12, FR-A-106 | Utgång utan motståndare vid starttid |
+| A12, FR-A-106 | Utgång utan motståndare vid starttid (`MATCH_EXPIRED` till B i Spår 1) |
 | A13, A14, FR-A-107, BR-14 | "Match genomförd" inom 48 h, påminnelser vid sluttid och +24 h |
 | C1–C5, FR-C-301–303, BR-05, BR-13 | Blind Fair Play-recension, lagprofil (median, snitt, min 3) |
 | FR-U-001–003 | Google-inloggning, lagprofiler, kansliets godkännande |
 | FR-B-207 | Masterdata för anläggningar och planer |
 | 4.0, NFR-05/06/07 | Outbox, idempotens, ordning, revisionslogg, tidszon |
-| Avsnitt 9 | Notifieringar #1, 2, 6–10, 14–18 |
+| Avsnitt 9 | Notifieringar #1–18 |
 
-**Inte med i utkastet:** Spår 1 och Process B (kö för helgtider, 14-dagarsregeln, inställning från kansliet),
-radering av personuppgifter (FR-U-004) och en riktig e-postleverantör. Typerna, routingen och
-eventutskicken för Spår 1 (`RESERVATION_ACCEPTED`, `RESERVATION_WITHDRAWN`, `MATCH_EXPIRED`) finns redan
-i Process A, så Process B kan läggas till som en ny mottagare i dispatchern.
+**Inte med i utkastet:** radering av personuppgifter (FR-U-004) och en riktig e-postleverantör.
 
 ## Tolkningar som bör granskas
 
@@ -128,6 +136,23 @@ i Process A, så Process B kan läggas till som en ny mottagare i dispatchern.
 7. **Externa lag:** en andra ledare kan koppla sig till ett externt lag utan godkännande (`NOT_REQUIRED`),
    i linje med avsnitt 8 punkt 10.
 8. **Påminnelsetidpunkterna** (vid sluttid och +24 h) är fortfarande **[FÖRSLAG]** i specen.
+9. **Spår 1 före tilldelning:** matchen håller det önskade tidsfönstret som start- och sluttid och har tomma
+   planfält tills `RESERVATION_RESERVED` tas emot (A3). Den visas inte på börsen.
+10. **`reservationId`:** `REQUEST_RESERVATION` (4.1) saknar id, så Process B skapar reservationen och Process A
+    får id:t med `RESERVATION_RESERVED` eller `RESERVATION_REJECTED`. Ett `RESERVATION_WITHDRAWN` från
+    `RESERVATION_REQUESTED` (A5) saknar därför `reservationId`. Process B hittar reservationen via `matchId`.
+11. **Tilldelad tid:** kansliet väljer start och slut på det begärda datumet, förifyllt med önskat fönster.
+    Att tiden ligger inom fönstret kontrolleras inte.
+12. **Överlapp (B2)** kontrolleras mot andra Spår 1-bokningar som håller en plantid (`RESERVED`, `ACCEPTED`),
+    inte mot Spår 2-matcher, eftersom Spår 2 inte ska påverka kansliet (BR-02).
+13. **14-dagarsfristen (BR-03)** spärrar även val av motståndare i Process A när reservationen fortfarande är
+    `RESERVED` och fristen passerat, så att ett val strax efter fristen inte hinner före den automatiska
+    återkallelsen. Schemaläggaren levererar väntande event före fristkontrollen.
+14. **Påminnelsen 18 dagar före (AC-202.1)** skickas vid lokal midnatt 18 dagar före matchdatum.
+15. **Obehandlad förfrågan:** specen anger ingen regel för en förfrågan som kansliet aldrig hanterar. Matchen
+    stannar i `RESERVATION_REQUESTED` tills hemmalaget avbokar eller kansliet beslutar.
+16. **Ignorerade event** (avsnitt 3, AC-105.2) loggas i revisionsloggen som `IGNORED <eventtyp> (status …)`.
+17. **Kansliets inställning (A11)** skickas som akut e-post enligt **[FÖRSLAG]** i NFR-03.
 
 ## Tekniska val
 

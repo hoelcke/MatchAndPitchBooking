@@ -2,17 +2,18 @@
 import type { Ctx } from './context.js';
 import { Dispatcher } from './infra/outbox.js';
 import { deliverPendingEmails, type EmailSender } from './infra/email.js';
-import { onMatchCompleted } from './modules/fairplay.js';
-import { runMatchTimers } from './modules/matches.js';
-import { runReviewDeadlines } from './modules/fairplay.js';
+import { onMatchCompleted, runReviewDeadlines } from './modules/fairplay.js';
+import * as matches from './modules/matches.js';
+import * as reservations from './modules/reservations.js';
 
 export function createDispatcher(): Dispatcher {
   return (
     new Dispatcher()
+      .register('PROCESS_A', matches.onEvent)
+      .register('PROCESS_B', reservations.onEvent)
       .register('PROCESS_C', (ctx, event) => (event.eventType === 'MATCH_COMPLETED' ? onMatchCompleted(ctx, event) : 'IGNORED'))
       // Lagprofilen räknas om av Process C i samma transaktion som publiceringen; eventet kvitteras här.
       .register('TEAM_PROFILE', () => 'HANDLED')
-    // PROCESS_A (mottagning av B-event) och PROCESS_B registreras när Spår 1 implementeras.
   );
 }
 
@@ -38,12 +39,15 @@ export class Runtime {
     }
   }
 
-  /** Tidsstyrda övergångar: utgång, påminnelser och recensionsfrister. */
-  async tick(): Promise<{ expired: number; reminders: number; reviewMatches: number }> {
-    const r = runMatchTimers(this.ctx);
+  /** Tidsstyrda övergångar: utgång, påminnelser, 14-dagarsfristen och recensionsfrister. */
+  async tick(): Promise<{ expired: number; reminders: number; revoked: number; reviewMatches: number }> {
+    // Leverera väntande event först, så att t.ex. ett RESERVATION_ACCEPTED hinner fram före 14-dagarsfristen.
+    await this.flush();
+    const r = matches.runMatchTimers(this.ctx);
+    const b = reservations.runReservationDeadlines(this.ctx);
     const reviewMatches = runReviewDeadlines(this.ctx);
     await this.flush();
-    return { ...r, reviewMatches };
+    return { expired: r.expired, reminders: r.reminders + b.reminders, revoked: b.revoked, reviewMatches };
   }
 
   start(): void {

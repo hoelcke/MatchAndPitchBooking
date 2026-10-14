@@ -91,3 +91,26 @@ export function formatDateTime(iso: string): string {
 export function formatSlot(startIso: string, endIso: string): string {
   return `${formatDateTime(startIso)}–${timeFormatter.format(new Date(endIso))}`;
 }
+
+/** Lokalt kalenderdatum (YYYY-MM-DD) plus ett antal dagar. */
+export function addDaysToDate(date: string, days: number): string {
+  const [y, m, d] = date.split('-').map(Number);
+  const shifted = new Date(Date.UTC(y, m - 1, d + days));
+  return `${shifted.getUTCFullYear()}-${pad(shifted.getUTCMonth() + 1)}-${pad(shifted.getUTCDate())}`;
+}
+
+/** Antal kalenderdagar från `from` till `to` (båda YYYY-MM-DD). */
+export function daysBetweenDates(from: string, to: string): number {
+  const toUtc = (s: string) => {
+    const [y, m, d] = s.split('-').map(Number);
+    return Date.UTC(y, m - 1, d);
+  };
+  return Math.round((toUtc(to) - toUtc(from)) / 86_400_000);
+}
+
+/** BR-01: lördag eller söndag. */
+export function isWeekendDate(date: string): boolean {
+  const [y, m, d] = date.split('-').map(Number);
+  const day = new Date(Date.UTC(y, m - 1, d)).getUTCDay();
+  return day === 0 || day === 6;
+}

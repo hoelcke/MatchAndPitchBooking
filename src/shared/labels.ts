@@ -5,6 +5,7 @@ import type {
   Level,
   MatchStatus,
   RefereeArrangement,
+  ReservationStatus,
   ReviewStatus,
   Surface,
   TeamCategory,
@@ -75,4 +76,16 @@ export const reviewStatusLabel: Record<ReviewStatus, string> = {
   SUBMITTED: 'Inskickad',
   EXPIRED: 'Utgången',
   PUBLISHED: 'Inräknad',
+};
+
+export const reservationStatusLabel: Record<ReservationStatus, string> = {
+  REQUESTED: 'Väntar på kansliet',
+  RESERVED: 'Plan tilldelad',
+  ACCEPTED: 'Motståndare vald',
+  COMPLETED: 'Genomförd',
+  REJECTED_BY_OFFICE: 'Avslagen av kansliet',
+  REVOKED_BY_DEADLINE: 'Återkallad (14-dagarsregeln)',
+  CANCELLED_BY_OFFICE: 'Inställd av kansliet',
+  WITHDRAWN_BY_HOME: 'Avbokad av hemmalaget',
+  CLOSED_EXPIRED: 'Utgången',
 };

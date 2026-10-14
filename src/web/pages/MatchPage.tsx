@@ -2,12 +2,12 @@ import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import type { LeaderContact } from '../../shared/types';
 import type { MatchDetail } from '../../server/modules/matches';
-import { categoryLabel, gameFormatLabel, inquiryStatusLabel, levelLabel, refereeLabel, surfaceLabel } from '../../shared/labels';
-import { formatDateTime, formatSlot } from '../../shared/time';
+import { categoryLabel, gameFormatLabel, inquiryStatusLabel, levelLabel, refereeLabel, reservationStatusLabel, surfaceLabel } from '../../shared/labels';
+import { formatDateTime } from '../../shared/time';
 import { api } from '../api';
 import { useAction, useApi } from '../hooks';
 import { useSession } from '../session';
-import { ErrorBox, Field, Info, Loading, StatusBadge, TeamProfileLine, ageLabel, teamLabel } from '../components/ui';
+import { ErrorBox, Field, Info, Loading, StatusBadge, TeamProfileLine, ageLabel, hasPitch, slotLabel, teamLabel } from '../components/ui';
 
 function Contact({ title, c }: { title: string; c: LeaderContact }) {
   return (
@@ -47,7 +47,7 @@ export function MatchPage() {
       <p><Link to="/">← Börsen</Link></p>
       <div className={`card${m.isUrgent && m.status === 'PUBLISHED' ? ' urgent' : ''}`}>
         <div className="match-card-head">
-          <span className="match-when">{formatSlot(m.venue.startTime, m.venue.endTime)}</span>
+          <span className="match-when">{slotLabel(m)}</span>
           <StatusBadge status={m.status} urgent={m.isUrgent} />
         </div>
         <h1 className="match-heading">
@@ -61,7 +61,12 @@ export function MatchPage() {
           <dt>Ålder</dt><dd>{categoryLabel[m.category]} {m.birthYear}{m.openToAdjacentBirthYears && ' (öppen för ett år yngre eller äldre)'}</dd>
           <dt>Spelform</dt><dd>{gameFormatLabel[m.gameFormat]}, speltid {m.durationMinutes} min</dd>
           <dt>Matchnivå</dt><dd>{levelLabel[m.matchLevel]}</dd>
-          <dt>Plats</dt><dd>{m.venue.facilityName}, {m.venue.pitchName} ({surfaceLabel[m.venue.surface].toLowerCase()})<br /><span className="muted">{m.venue.facilityAddress}</span></dd>
+          <dt>Plats</dt>
+          <dd>
+            {hasPitch(m) ? (
+              <>{m.venue.facilityName}, {m.venue.pitchName} ({surfaceLabel[m.venue.surface].toLowerCase()})<br /><span className="muted">{m.venue.facilityAddress}</span></>
+            ) : m.status === 'RESERVATION_REQUESTED' ? 'Tilldelas av kansliet' : 'Ingen plan tilldelades'}
+          </dd>
           <dt>Domare</dt><dd>{refereeLabel[m.referee]}</dd>
           <dt>Hemmalagets ställ</dt><dd>{m.kitColorHome}</dd>
           <dt>Hemmalaget</dt><dd><Link to={`/lag/${m.homeTeam.id}`}>{teamLabel(m.homeTeam)}</Link><br /><TeamProfileLine team={m.homeTeam} /></dd>
@@ -136,6 +141,7 @@ export function MatchPage() {
       {viewer.isHomeLeader && (
         <section className="card">
           <h2>Hemmalaget</h2>
+          {data.reservation && <ReservationInfo r={data.reservation} matchStatus={m.status} />}
           {m.status === 'PUBLISHED' && (
             <>
               <h3>Intresseanmälningar ({activeInquiries.length})</h3>
@@ -179,5 +185,24 @@ export function MatchPage() {
         </section>
       )}
     </>
+  );
+}
+
+/** Spår 1: kansliets handläggning och 14-dagarsfristen (Process B), bara för hemmalaget. */
+function ReservationInfo({ r, matchStatus }: { r: NonNullable<MatchDetail['reservation']>; matchStatus: MatchDetail['match']['status'] }) {
+  return (
+    <div>
+      <p>
+        Helgtid via kansliet: <strong>{reservationStatusLabel[r.status]}</strong>
+        <span className="muted small"> · önskat {r.requestedDate} kl {r.timeWindow}</span>
+      </p>
+      {r.status === 'REQUESTED' && <Info>Kansliet har fått er förfrågan. Matchen publiceras på börsen när en plan är tilldelad.</Info>}
+      {r.status === 'RESERVED' && matchStatus === 'PUBLISHED' && (
+        <Info>
+          Välj motståndare senast <strong>{formatDateTime(r.deadlineAt)}</strong>. Annars återkallas plantiden automatiskt (14-dagarsregeln).
+        </Info>
+      )}
+      {r.decisionReason && <p>Kansliets orsak: <em>{r.decisionReason}</em></p>}
+    </div>
   );
 }

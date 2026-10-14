@@ -23,8 +23,8 @@ export function DevPage() {
     await Promise.all([emails.reload(), audit.reload(), outbox.reload(), reloadSession()]);
   };
   const clock = async (body: object) => {
-    const r = await action.run(() => api.post<{ now: string; offsetHours: number; expired: number; reminders: number; reviewMatches: number }>('/dev/clock', body));
-    if (r) setResult(`Klockan är nu ${formatDateTime(r.now)} (förskjutning ${r.offsetHours} h). Utgångna matcher: ${r.expired}, påminnelser: ${r.reminders}, recensionsfrister: ${r.reviewMatches}.`);
+    const r = await action.run(() => api.post<{ now: string; offsetHours: number; expired: number; reminders: number; revoked: number; reviewMatches: number }>('/dev/clock', body));
+    if (r) setResult(`Klockan är nu ${formatDateTime(r.now)} (förskjutning ${r.offsetHours} h). Utgångna matcher: ${r.expired}, påminnelser: ${r.reminders}, återkallade helgtider: ${r.revoked}, recensionsfrister: ${r.reviewMatches}.`);
     await refresh();
   };
 
@@ -34,7 +34,7 @@ export function DevPage() {
       <ErrorBox message={action.error} />
       <section className="card">
         <h2>Tidsmaskin</h2>
-        <p className="muted small">Flytta serverns klocka framåt och kör schemaläggaren, för att prova starttid, 48-timmarsfristen och 7-dagarsfristen.</p>
+        <p className="muted small">Flytta serverns klocka framåt och kör schemaläggaren, för att prova starttid, 14-dagarsregeln, 48-timmarsfristen och 7-dagarsfristen.</p>
         <div className="actions wrap">
           {[1, 6, 24, 48, 24 * 7].map((h) => (
             <button key={h} className="button small secondary" disabled={action.busy} onClick={() => void clock({ hours: h })}>

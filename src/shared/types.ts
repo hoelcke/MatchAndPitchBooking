@@ -156,6 +156,38 @@ export interface InquiryEntity {
   updatedAt: string;
 }
 
+export interface ReservationOpponent {
+  club: string;
+  teamName: string;
+  contactName: string;
+  contactPhone: string;
+}
+
+export interface ReservationEntity {
+  id: string;
+  matchId: string;
+  homeTeamId: string;
+  requestedDate: string; // YYYY-MM-DD, lokalt datum, endast lördag/söndag
+  timeWindow: string; // Lokal tid, t.ex. "10:00-13:00"
+  gameFormat: GameFormat;
+  birthYear: number;
+  category: TeamCategory;
+  allocatedPitch?: {
+    facilityId: string;
+    pitchId: string;
+    facilityName: string;
+    pitchName: string;
+    startTime: string;
+    endTime: string;
+  };
+  opponent?: ReservationOpponent;
+  status: ReservationStatus;
+  decisionReason?: string;
+  deadlineAt: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface FairPlayReviewEntity {
   id: string;
   matchId: string;

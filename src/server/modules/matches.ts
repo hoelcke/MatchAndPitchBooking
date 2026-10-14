@@ -1,22 +1,33 @@
 // Process A: Matchgenomförande (avsnitt 3.1, FR-A-101–107).
-// Första utkastet implementerar Spår 2 (egen träningstid). Spår 1 kräver Process B (planbokning).
+// Spår 1 (ny helgtid) går via Process B (planbokning) och outbox-event. Spår 2 (egen träningstid) publiceras direkt.
 import type { Ctx } from '../context.js';
 import type {
   GameFormat,
   InquiryEntity,
+  OutboxEvent,
   InquiryStatus,
   LeaderContact,
   Level,
   MatchEntity,
   MatchStatus,
   RefereeArrangement,
+  ReservationStatus,
   Team,
   TeamCategory,
   User,
 } from '../../shared/types.js';
 import { GAME_FORMATS, LEVELS, REFEREE_ARRANGEMENTS, TEAM_CATEGORIES } from '../../shared/types.js';
 import { isCompatible } from '../../shared/rules.js';
-import { addHours, addLocalDays, formatDateTime, formatSlot, localToUtc } from '../../shared/time.js';
+import {
+  addHours,
+  addLocalDays,
+  daysBetweenDates,
+  formatDateTime,
+  formatSlot,
+  isWeekendDate,
+  localToUtc,
+  utcToLocal,
+} from '../../shared/time.js';
 import { all, newId, one, run, tx, type SqlParam } from '../infra/db.js';
 import { audit, SYSTEM_USER } from '../infra/audit.js';
 import { emit } from '../infra/outbox.js';
@@ -31,12 +42,15 @@ import {
   teamLeaderEmails,
 } from './identity.js';
 import { getPitchWithFacility } from './masterdata.js';
+import { getReservationForMatch } from './reservations.js';
 
 /** AC-107.1 / BR-14: bekräftelse av genomförd match senast 48 h efter sluttid. */
 export const CONFIRM_WINDOW_HOURS = 48;
 /** AC-107.3 [FÖRSLAG]: påminnelser vid sluttid och 24 h efter sluttid. */
 export const REMINDER_OFFSETS_HOURS = [0, 24] as const;
 export const REVIEW_PERIOD_DAYS = 7;
+/** BR-06: minsta ledtid för Spår 1, räknat i kalenderdagar i Europe/Stockholm. */
+export const MIN_LEAD_DAYS_TRACK1 = 21;
 
 // ---------- Persistens ----------
 
@@ -209,15 +223,11 @@ function contactFor(user: User, team: Team, phone: string): LeaderContact {
 
 const matchTitle = (m: MatchEntity) => `${m.homeContact.club} ${m.homeContact.teamName}, ${formatSlot(m.venue.startTime, m.venue.endTime)}`;
 
-// ---------- A2: Skapa match, Spår 2 ----------
+// ---------- Skapa match: gemensamt för båda spåren ----------
 
-export interface CreateOwnSlotInput {
+interface MatchFields {
   homeTeamId: string;
   phone: string;
-  pitchId: string;
-  date: string; // YYYY-MM-DD lokalt
-  startTime: string; // HH:mm lokalt
-  endTime: string; // HH:mm lokalt
   gameFormat: GameFormat;
   birthYear: number;
   category: TeamCategory;
@@ -228,13 +238,10 @@ export interface CreateOwnSlotInput {
   kitColorHome: string;
 }
 
-/**
- * AC-101.3 / A2: Spår 2 publiceras direkt. Process B startas inte, och ingen validering
- * av plantillgång eller överlapp görs (BR-02).
- */
-export function createOwnSlotMatch(ctx: Ctx, user: User, input: CreateOwnSlotInput): MatchEntity {
+/** Guards och fältvalidering som gäller både A1 och A2. */
+function validateMatchFields(ctx: Ctx, user: User, input: MatchFields) {
   const team = requireTeam(ctx, input.homeTeamId);
-  // A2-guard / BR-07 / BR-08 / AC-101.5
+  // BR-07 / BR-08 / AC-101.5
   if (!team.isHomeClub) throw forbidden('Endast IFK Lidingö-lag kan skapa matcher');
   if (!isActiveLeader(ctx, user.id, team.id)) throw forbidden('Din koppling till laget är inte godkänd av kansliet');
 
@@ -247,11 +254,33 @@ export function createOwnSlotMatch(ctx: Ctx, user: User, input: CreateOwnSlotInp
   const durationMinutes = Number(input.durationMinutes);
   if (!Number.isInteger(durationMinutes) || durationMinutes < 10 || durationMinutes > 180)
     throw badRequest('Speltiden måste vara 10–180 minuter');
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(input.date ?? '')) throw badRequest('Datum saknas');
-  if (!/^\d{2}:\d{2}$/.test(input.startTime ?? '') || !/^\d{2}:\d{2}$/.test(input.endTime ?? ''))
-    throw badRequest('Start- och sluttid måste anges');
   const kit = (input.kitColorHome ?? '').trim();
   if (!kit) throw badRequest('Ange hemmalagets matchställ');
+  const contact = contactFor(user, team, input.phone);
+  return { team, birthYear, durationMinutes, kit, contact };
+}
+
+const TIME_RE = /^\d{2}:\d{2}$/;
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+// ---------- A2: Skapa match, Spår 2 ----------
+
+export interface CreateOwnSlotInput extends MatchFields {
+  pitchId: string;
+  date: string; // YYYY-MM-DD lokalt
+  startTime: string; // HH:mm lokalt
+  endTime: string; // HH:mm lokalt
+}
+
+/**
+ * AC-101.3 / A2: Spår 2 publiceras direkt. Process B startas inte, och ingen validering
+ * av plantillgång eller överlapp görs (BR-02).
+ */
+export function createOwnSlotMatch(ctx: Ctx, user: User, input: CreateOwnSlotInput): MatchEntity {
+  const { team, birthYear, durationMinutes, kit, contact } = validateMatchFields(ctx, user, input);
+  if (!DATE_RE.test(input.date ?? '')) throw badRequest('Datum saknas');
+  if (!TIME_RE.test(input.startTime ?? '') || !TIME_RE.test(input.endTime ?? ''))
+    throw badRequest('Start- och sluttid måste anges');
 
   const startTime = localToUtc(input.date, input.startTime);
   const endTime = localToUtc(input.date, input.endTime);
@@ -261,7 +290,6 @@ export function createOwnSlotMatch(ctx: Ctx, user: User, input: CreateOwnSlotInp
   const venue = getPitchWithFacility(ctx, input.pitchId);
   if (!venue || !venue.pitch.active || !venue.facility.active) throw badRequest('Välj en aktiv plan ur listan');
 
-  const contact = contactFor(user, team, input.phone);
   const id = newId('mat');
   const now = ctx.clock.nowIso();
 
@@ -296,6 +324,80 @@ export function createOwnSlotMatch(ctx: Ctx, user: User, input: CreateOwnSlotInp
       now,
     );
     audit(ctx, { userId: user.id, entityType: 'Match', entityId: id, transition: '(start) -> PUBLISHED (A2)' });
+    return getMatch(ctx, id)!;
+  });
+}
+
+// ---------- A1: Skapa match, Spår 1 ----------
+
+export interface CreateWeekendSlotInput extends MatchFields {
+  date: string; // YYYY-MM-DD lokalt, lördag eller söndag
+  windowStart: string; // HH:mm lokalt, önskat tidsfönster
+  windowEnd: string;
+}
+
+/** AC-101.2 */
+export const WEEKDAY_MESSAGE = 'Träningsmatchtider tilldelas endast under helger';
+/** AC-101.4 */
+export const TOO_LATE_MESSAGE = 'Helgtider måste begäras minst 21 dagar i förväg';
+
+/**
+ * AC-101.1 / A1: Spår 1 skapar matchen i RESERVATION_REQUESTED och skickar REQUEST_RESERVATION
+ * till Process B. Plan och tid sätts när kansliet tilldelat plan (A3). Tills dess håller
+ * matchen det önskade tidsfönstret som start- och sluttid, och plan-fälten är tomma.
+ */
+export function createWeekendSlotMatch(ctx: Ctx, user: User, input: CreateWeekendSlotInput): MatchEntity {
+  const { team, birthYear, durationMinutes, kit, contact } = validateMatchFields(ctx, user, input);
+  if (!DATE_RE.test(input.date ?? '')) throw badRequest('Datum saknas');
+  if (!isWeekendDate(input.date)) throw badRequest(WEEKDAY_MESSAGE); // BR-01
+  const today = utcToLocal(ctx.clock.nowIso()).date;
+  if (daysBetweenDates(today, input.date) < MIN_LEAD_DAYS_TRACK1) throw badRequest(TOO_LATE_MESSAGE); // BR-06
+  if (!TIME_RE.test(input.windowStart ?? '') || !TIME_RE.test(input.windowEnd ?? ''))
+    throw badRequest('Ange önskat tidsfönster');
+  const startTime = localToUtc(input.date, input.windowStart);
+  const endTime = localToUtc(input.date, input.windowEnd);
+  if (endTime <= startTime) throw badRequest('Tidsfönstrets slut måste vara efter dess början');
+
+  const timeWindow = `${input.windowStart}-${input.windowEnd}`;
+  const id = newId('mat');
+  const now = ctx.clock.nowIso();
+
+  return tx(ctx.db, () => {
+    run(
+      ctx.db,
+      `INSERT INTO matches (id, origin, home_team_id, home_contact, game_format, birth_year, category,
+         open_to_adjacent_birth_years, match_level, duration_minutes, facility_id, pitch_id, facility_name,
+         facility_address, pitch_name, surface, start_time, end_time, referee, kit_color_home, status,
+         inquiries_count, is_urgent, created_at, updated_at)
+       VALUES (?, 'NEW_WEEKEND_SLOT', ?, ?, ?, ?, ?, ?, ?, ?, '', '', '', '', '', '', ?, ?, ?, ?, 'RESERVATION_REQUESTED', 0, 0, ?, ?)`,
+      id,
+      team.id,
+      JSON.stringify(contact),
+      input.gameFormat,
+      birthYear,
+      input.category,
+      input.openToAdjacentBirthYears ? 1 : 0,
+      input.matchLevel,
+      durationMinutes,
+      startTime,
+      endTime,
+      input.referee,
+      kit,
+      now,
+      now,
+    );
+    // 4.1: REQUEST_RESERVATION till Process B.
+    const event = emit(ctx, 'REQUEST_RESERVATION', id, {
+      homeTeamId: team.id,
+      clubName: team.clubName,
+      requestedDate: input.date,
+      preferredTimeWindow: timeWindow,
+      timeZone: 'Europe/Stockholm',
+      gameFormat: input.gameFormat,
+      birthYear,
+      category: input.category,
+    });
+    audit(ctx, { eventId: event.eventId, userId: user.id, entityType: 'Match', entityId: id, transition: '(start) -> RESERVATION_REQUESTED (A1)' });
     return getMatch(ctx, id)!;
   });
 }
@@ -389,6 +491,27 @@ export interface MatchDetail {
     confirmCompleted: boolean;
   };
   confirmWindow: { from: string; until: string };
+  /** Spår 1, bara för hemmalaget: kansliets handläggning (Process B). */
+  reservation?: ReservationSummary;
+}
+
+export interface ReservationSummary {
+  status: ReservationStatus;
+  requestedDate: string;
+  timeWindow: string;
+  /** BR-03: motståndare ska vara vald senast denna tidpunkt. */
+  deadlineAt: string;
+  decisionReason?: string;
+}
+
+/**
+ * BR-03: i Spår 1 kan motståndare inte väljas efter 14-dagarsfristen om reservationen
+ * fortfarande är RESERVED. Efter ett återbud (BR-04) är den redan ACCEPTED och fristen gäller inte.
+ */
+function track1DeadlinePassed(ctx: Ctx, m: MatchEntity): boolean {
+  if (m.origin !== 'NEW_WEEKEND_SLOT') return false;
+  const res = getReservationForMatch(ctx, m.id);
+  return !!res && res.status === 'RESERVED' && ctx.clock.nowIso() > res.deadlineAt;
 }
 
 export function getMatchDetail(ctx: Ctx, matchId: string, user: User | undefined): MatchDetail {
@@ -426,6 +549,7 @@ export function getMatchDetail(ctx: Ctx, matchId: string, user: User | undefined
   const showHome = isHomeLeader || isAwayLeader;
   const confirmFrom = m.venue.endTime;
   const confirmUntil = addHours(m.venue.endTime, CONFIRM_WINDOW_HOURS);
+  const res = isHomeLeader && m.origin === 'NEW_WEEKEND_SLOT' ? getReservationForMatch(ctx, m.id) : undefined;
 
   return {
     match: {
@@ -437,12 +561,19 @@ export function getMatchDetail(ctx: Ctx, matchId: string, user: User | undefined
     inquiries: isHomeLeader ? all_.map(toView) : undefined,
     allowed: {
       inquire: !!user && m.status === 'PUBLISHED' && !started && eligibleTeams.length > 0,
-      select: isHomeLeader && m.status === 'PUBLISHED' && !started && m.inquiriesCount > 0,
+      select: isHomeLeader && m.status === 'PUBLISHED' && !started && m.inquiriesCount > 0 && !track1DeadlinePassed(ctx, m),
       cancel: isHomeLeader && ['RESERVATION_REQUESTED', 'PUBLISHED', 'MATCH_CONFIRMED'].includes(m.status) && !started,
       withdrawAsOpponent: isAwayLeader && m.status === 'MATCH_CONFIRMED' && !started,
       confirmCompleted: isHomeLeader && m.status === 'MATCH_CONFIRMED' && now >= confirmFrom && now <= confirmUntil,
     },
     confirmWindow: { from: confirmFrom, until: confirmUntil },
+    reservation: res && {
+      status: res.status,
+      requestedDate: res.requestedDate,
+      timeWindow: res.timeWindow,
+      deadlineAt: res.deadlineAt,
+      decisionReason: res.decisionReason,
+    },
   };
 }
 
@@ -537,6 +668,7 @@ export function selectOpponent(ctx: Ctx, user: User, matchId: string, inquiryId:
     if (!isActiveLeader(ctx, user.id, m.homeTeamId)) throw forbidden('Endast hemmalagets ledare kan välja motståndare');
     if (m.status !== 'PUBLISHED') throw conflict('Matchen söker inte motståndare');
     if (m.venue.startTime <= ctx.clock.nowIso()) throw conflict('Matchens starttid har passerat');
+    if (track1DeadlinePassed(ctx, m)) throw conflict('14-dagarsfristen har passerat. Plantiden återkallas.');
 
     const r = one<InquiryRow>(ctx.db, `SELECT * FROM inquiries WHERE id = ? AND match_id = ?`, inquiryId, m.id);
     if (!r) throw notFound('Intresseanmälan finns inte');
@@ -638,9 +770,9 @@ export function cancelMatch(ctx: Ctx, user: User, matchId: string): MatchEntity 
       throw conflict('Matchens starttid har passerat');
 
     let eventId: string | undefined;
-    if (m.reservationId) {
-      // Spår 1: plantiden frigörs i Process B (4.5).
-      eventId = emit(ctx, 'RESERVATION_WITHDRAWN', m.id, { reservationId: m.reservationId }).eventId;
+    if (m.origin === 'NEW_WEEKEND_SLOT') {
+      // Spår 1: plantiden frigörs i Process B (4.5). I RESERVATION_REQUESTED finns inget reservationId än (A5).
+      eventId = emit(ctx, 'RESERVATION_WITHDRAWN', m.id, m.reservationId ? { reservationId: m.reservationId } : {}).eventId;
     }
     transitionMatch(ctx, m, 'CANCELLED', { userId: user.id, rule, eventId });
 
@@ -686,6 +818,11 @@ export function confirmCompleted(ctx: Ctx, user: User, matchId: string): MatchEn
 
 // ---------- Tidsstyrda övergångar (A12, A14, AC-107.3) ----------
 
+/** Har Process A någon gång skickat RESERVATION_ACCEPTED för matchen? */
+function hasSentAccepted(ctx: Ctx, matchId: string): boolean {
+  return !!one(ctx.db, `SELECT 1 FROM outbox_events WHERE match_id = ? AND event_type = 'RESERVATION_ACCEPTED'`, matchId);
+}
+
 /** Körs periodiskt av schemaläggaren. Varje match hanteras i en egen transaktion. */
 export function runMatchTimers(ctx: Ctx): { expired: number; reminders: number } {
   const now = ctx.clock.nowIso();
@@ -697,9 +834,13 @@ export function runMatchTimers(ctx: Ctx): { expired: number; reminders: number }
     const m = toMatch(r);
     try {
       tx(ctx.db, () => {
-        // MATCH_EXPIRED skickas bara när en Spår 1-reservation är ACCEPTED (4.9). Det kan inte gälla en
-        // PUBLISHED Spår 2-match; hanteras när Process B finns.
-        transitionMatch(ctx, m, 'EXPIRED', { userId: SYSTEM_USER, rule: 'A12' });
+        // 4.9: MATCH_EXPIRED skickas bara när Spår 1-reservationen är ACCEPTED. En PUBLISHED Spår 1-match
+        // har en accepterad reservation om hemmalaget valt motståndare tidigare (återbud, BR-04).
+        const eventId =
+          m.reservationId && hasSentAccepted(ctx, m.id)
+            ? emit(ctx, 'MATCH_EXPIRED', m.id, { reservationId: m.reservationId, reason: 'NO_OPPONENT_AT_START' }).eventId
+            : undefined;
+        transitionMatch(ctx, m, 'EXPIRED', { userId: SYSTEM_USER, rule: 'A12', eventId });
         // Notifieringsmatris #14
         queueEmails(
           ctx,
@@ -761,4 +902,120 @@ export function runMatchTimers(ctx: Ctx): { expired: number; reminders: number }
   }
 
   return { expired, reminders };
+}
+
+// ---------- Mottagning av event från Process B (A3, A4, A10, A11) ----------
+
+export function onEvent(ctx: Ctx, event: OutboxEvent): 'HANDLED' | 'IGNORED' {
+  const m = getMatch(ctx, event.matchId);
+  if (!m) return 'IGNORED';
+  switch (event.eventType) {
+    case 'RESERVATION_RESERVED':
+      return m.status === 'RESERVATION_REQUESTED' ? onReserved(ctx, m, event) : ignore(ctx, m, event);
+    case 'RESERVATION_REJECTED':
+      return m.status === 'RESERVATION_REQUESTED' ? onRejected(ctx, m, event) : ignore(ctx, m, event);
+    case 'RESERVATION_REVOKED':
+      return m.status === 'PUBLISHED' ? onRevoked(ctx, m, event) : ignore(ctx, m, event);
+    case 'RESERVATION_CANCELLED_BY_OFFICE':
+      return m.status === 'PUBLISHED' || m.status === 'MATCH_CONFIRMED' ? onCancelledByOffice(ctx, m, event) : ignore(ctx, m, event);
+    default:
+      return 'IGNORED';
+  }
+}
+
+/** Avsnitt 3 / AC-105.2: event som inte längre passar matchens läge ignoreras och loggas. */
+function ignore(ctx: Ctx, m: MatchEntity, event: OutboxEvent): 'IGNORED' {
+  audit(ctx, {
+    eventId: event.eventId,
+    userId: SYSTEM_USER,
+    entityType: 'Match',
+    entityId: m.id,
+    transition: `IGNORED ${event.eventType} (status ${m.status})`,
+  });
+  return 'IGNORED';
+}
+
+const activeInquiryEmails = (ctx: Ctx, matchId: string) =>
+  inquiriesFor(ctx, matchId, 'ACTIVE').flatMap((i) => teamLeaderEmails(ctx, i.teamId));
+
+/** A3 / AC-102.1: plan tilldelad. Matchen får plan och tid och publiceras på börsen. */
+function onReserved(ctx: Ctx, m: MatchEntity, event: OutboxEvent): 'HANDLED' {
+  const p = event.payload as {
+    reservationId: string;
+    facilityId: string;
+    pitchId: string;
+    facilityName: string;
+    pitchName: string;
+    startTime: string;
+    endTime: string;
+    deadlineAt: string;
+  };
+  // Adress och underlag finns inte i eventet (4.2) och hämtas ur masterdata.
+  const venue = getPitchWithFacility(ctx, p.pitchId);
+  transitionMatch(ctx, m, 'PUBLISHED', {
+    userId: SYSTEM_USER,
+    rule: 'A3',
+    eventId: event.eventId,
+    set: {
+      reservation_id: p.reservationId,
+      facility_id: p.facilityId,
+      pitch_id: p.pitchId,
+      facility_name: p.facilityName,
+      facility_address: venue?.facility.address ?? '',
+      pitch_name: p.pitchName,
+      surface: venue?.pitch.surface ?? '',
+      start_time: p.startTime,
+      end_time: p.endTime,
+    },
+  });
+  const updated = getMatch(ctx, m.id)!;
+  // Notifieringsmatris #4
+  queueEmails(ctx, teamLeaderEmails(ctx, m.homeTeamId), {
+    subject: `Plan tilldelad: ${matchTitle(updated)}`,
+    body: `Kansliet har tilldelat ${p.facilityName} ${p.pitchName}, ${formatSlot(p.startTime, p.endTime)}. Matchen ligger nu på börsen.\nVälj motståndare senast ${formatDateTime(p.deadlineAt)}, annars återkallas tiden automatiskt (14-dagarsregeln).`,
+  });
+  return 'HANDLED';
+}
+
+/** A4 / AC-204.1: kansliet avslog förfrågan. Hemmalaget får kansliets orsak. */
+function onRejected(ctx: Ctx, m: MatchEntity, event: OutboxEvent): 'HANDLED' {
+  const p = event.payload as { reservationId: string; reason: string };
+  transitionMatch(ctx, m, 'CANCELLED', { userId: SYSTEM_USER, rule: 'A4', eventId: event.eventId, set: { reservation_id: p.reservationId } });
+  const local = utcToLocal(m.venue.startTime).date;
+  // Notifieringsmatris #5
+  queueEmails(ctx, teamLeaderEmails(ctx, m.homeTeamId), {
+    subject: `Förfrågan om helgtid avslogs: ${local}`,
+    body: `Kansliet kunde inte tilldela någon plan ${local}. Orsak: ${p.reason}\nDu kan skapa en ny förfrågan eller använda en egen träningstid (Spår 2).`,
+  });
+  return 'HANDLED';
+}
+
+/** A10 / AC-202.2: 14-dagarsfristen passerade utan vald motståndare. */
+function onRevoked(ctx: Ctx, m: MatchEntity, event: OutboxEvent): 'HANDLED' {
+  const recipients = [...teamLeaderEmails(ctx, m.homeTeamId), ...activeInquiryEmails(ctx, m.id)];
+  transitionMatch(ctx, m, 'CANCELLED', { userId: SYSTEM_USER, rule: 'A10', eventId: event.eventId });
+  // Notifieringsmatris #12
+  queueEmails(ctx, recipients, {
+    subject: `Matchen är inställd: ${matchTitle(m)}`,
+    body: `Ingen motståndare valdes senast 14 dagar före matchdagen, så plantiden har återkallats och matchen är inställd.`,
+  });
+  return 'HANDLED';
+}
+
+/** A11 / AC-206.1: kansliet ställde in bokningen. Akut notis med kansliets orsak. */
+function onCancelledByOffice(ctx: Ctx, m: MatchEntity, event: OutboxEvent): 'HANDLED' {
+  const p = event.payload as { reason: string };
+  const recipients = [
+    ...teamLeaderEmails(ctx, m.homeTeamId),
+    ...(m.awayTeamId ? teamLeaderEmails(ctx, m.awayTeamId) : []),
+    ...activeInquiryEmails(ctx, m.id),
+  ];
+  transitionMatch(ctx, m, 'CANCELLED', { userId: SYSTEM_USER, rule: 'A11', eventId: event.eventId });
+  // Notifieringsmatris #13 (akut enligt [FÖRSLAG] i NFR-03)
+  queueEmails(ctx, recipients, {
+    urgent: true,
+    subject: `INSTÄLLD: ${matchTitle(m)}`,
+    body: `Kansliet har ställt in bokningen av ${m.venue.facilityName} ${m.venue.pitchName}. Orsak: ${p.reason}`,
+  });
+  return 'HANDLED';
 }
