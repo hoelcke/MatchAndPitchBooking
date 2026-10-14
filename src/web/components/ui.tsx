@@ -98,29 +98,6 @@ export function Loading() {
   return <p className="muted">Laddar…</p>;
 }
 
-const HOURS = Array.from({ length: 24 }, (_, h) => String(h).padStart(2, '0'));
-const MINUTES = Array.from({ length: 12 }, (_, i) => String(i * 5).padStart(2, '0'));
-
-/**
- * Tid i 24-timmarsformat (HH:mm). Webbläsarens <input type="time"> följer operativsystemets
- * språkinställning och kan visa AM/PM, därför två listor för timme och minut (5-minutersteg).
- */
-export function TimeInput({ value, onChange, label }: { value: string; onChange: (v: string) => void; label: string }) {
-  const [h = '00', m = '00'] = value.split(':');
-  const minutes = MINUTES.includes(m) ? MINUTES : [...MINUTES, m].sort();
-  return (
-    <span className="time-input">
-      <select aria-label={`${label}, timme`} value={h} onChange={(e) => onChange(`${e.target.value}:${m}`)}>
-        {HOURS.map((x) => <option key={x} value={x}>{x}</option>)}
-      </select>
-      <span aria-hidden>:</span>
-      <select aria-label={`${label}, minut`} value={m} onChange={(e) => onChange(`${h}:${e.target.value}`)}>
-        {minutes.map((x) => <option key={x} value={x}>{x}</option>)}
-      </select>
-    </span>
-  );
-}
-
 /** Sluttid (HH:mm) för en starttid plus längd i minuter. */
 export function endTimeLabel(start: string, minutes: number): string {
   const [h, m] = start.split(':').map(Number);

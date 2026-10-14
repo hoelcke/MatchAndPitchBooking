@@ -7,7 +7,7 @@ import { formatDateTime, formatSlot } from '../../shared/time';
 import { api, ApiError } from '../api';
 import { useAction, useApi } from '../hooks';
 import { RequireUser } from '../components/RequireUser';
-import { ErrorBox, Field, Loading, TimeInput, ageLabel, endTimeLabel, teamLabel } from '../components/ui';
+import { ErrorBox, Field, Loading, ageLabel, endTimeLabel, teamLabel } from '../components/ui';
 
 type MembershipRow = TeamMembership & { team: Team; user: { id: string; name: string; email: string } };
 type FacilityWithPitches = Facility & { pitches: Pitch[] };
@@ -156,7 +156,7 @@ function QueueItem({ r, facilities, act, busy }: {
       </Field>
       <div className="two">
         <Field label="Starttid">
-          <TimeInput label="Starttid" value={form.startTime} onChange={(v) => setForm({ ...form, startTime: v })} />
+          <input type="time" step={300} required value={form.startTime} onChange={(e) => setForm({ ...form, startTime: e.target.value })} />
         </Field>
         <Field label="Längd (min)" hint={`Slutar ${endTimeLabel(form.startTime, form.durationMinutes)}`}>
           <input type="number" min={10} max={180} step={5} required value={form.durationMinutes} onChange={(e) => setForm({ ...form, durationMinutes: Number(e.target.value) })} />
