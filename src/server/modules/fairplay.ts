@@ -47,6 +47,7 @@ const toReview = (r: ReviewRow): FairPlayReviewEntity => ({
   status: r.status,
   deadlineAt: r.deadline_at,
   submittedAt: r.submitted_at ?? undefined,
+  publishedAt: r.published_at ?? undefined,
 });
 
 function reviewsForMatch(ctx: Ctx, matchId: string): FairPlayReviewEntity[] {

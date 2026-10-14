@@ -80,6 +80,7 @@ const toReservation = (r: ReservationRow): ReservationEntity => ({
   status: r.status,
   decisionReason: r.decision_reason ?? undefined,
   deadlineAt: r.deadline_at,
+  reservedAt: r.reserved_at ?? undefined,
   createdAt: r.created_at,
   updatedAt: r.updated_at,
 });
@@ -439,7 +440,7 @@ export function runReservationDeadlines(ctx: Ctx): { revoked: number; reminders:
   for (const r of all<ReservationRow>(ctx.db, `SELECT * FROM reservations WHERE status = 'RESERVED'`)) {
     const res = toReservation(r);
     const reminderAt = reminderAtFor(res.requestedDate);
-    if (now < reminderAt || !r.reserved_at || r.reserved_at > reminderAt) continue;
+    if (now < reminderAt || !res.reservedAt || res.reservedAt > reminderAt) continue;
     tx(ctx.db, () => {
       const inserted = run(
         ctx.db,

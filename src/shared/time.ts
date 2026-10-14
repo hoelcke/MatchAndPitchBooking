@@ -39,6 +39,14 @@ function offsetMs(date: Date): number {
 
 const pad = (n: number) => String(n).padStart(2, '0');
 
+/** Sant om strängen är ett giltigt kalenderdatum på formen YYYY-MM-DD (t.ex. inte 2026-02-30). */
+export function isValidDate(date: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return false;
+  const [y, m, d] = date.split('-').map(Number);
+  const t = new Date(Date.UTC(y, m - 1, d));
+  return t.getUTCFullYear() === y && t.getUTCMonth() === m - 1 && t.getUTCDate() === d;
+}
+
 /** Lokalt datum (YYYY-MM-DD) och tid (HH:mm eller HH:mm:ss) i Europe/Stockholm till UTC ISO-sträng. */
 export function localToUtc(date: string, time: string): string {
   const [y, m, d] = date.split('-').map(Number);

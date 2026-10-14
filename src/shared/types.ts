@@ -184,6 +184,8 @@ export interface ReservationEntity {
   status: ReservationStatus;
   decisionReason?: string;
   deadlineAt: string;
+  /** AC-202.1: när planen tilldelades. Styr påminnelsen 18 dagar före. */
+  reservedAt?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -202,6 +204,8 @@ export interface FairPlayReviewEntity {
   status: ReviewStatus;
   deadlineAt: string;
   submittedAt?: string;
+  /** C3: när recensionen räknades in i lagprofilen. */
+  publishedAt?: string;
 }
 
 export interface AuditLogEntry {
