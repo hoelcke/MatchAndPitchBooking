@@ -58,7 +58,8 @@ Dev-verktygen är avstängda när `NODE_ENV=production` om inte `ENABLE_DEV_TOOL
 ## Arkitektur
 
 Dokumentation i `docs/`: kravspecifikationen, ER-diagram över databasen (`erd.md`, Mermaid) och
-arbetsflödena som case lifecycles (`arbetsfloden.html`, öppna i en webbläsare).
+arbetsflödena som case lifecycles (`arbetsfloden.html`) och informationsobjekten med fält, relationer och
+integrationer (`informationsobjekt.html`). HTML-filerna öppnas i en webbläsare.
 
 ```
 src/

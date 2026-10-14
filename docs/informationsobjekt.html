@@ -1,0 +1,487 @@
+<!doctype html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Matchbörsens informationsobjekt</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,600;8..60,700&family=Open+Sans:wght@400;600;700&family=JetBrains+Mono:wght@500&display=swap">
+<style>
+/* Layout: App Studio-liknande Data & Integrations. Inkommande händelser | Applikationsdata | Integrationer, detaljpanel under. */
+:root {
+  --bg: #f4f6fa;
+  --surface: #ffffff;
+  --surface-2: #f1f3f8;
+  --fg: #1b2333;
+  --muted: #5c667a;
+  --line: #d9dee8;
+  --navy: #12305e;
+  --frame: #2f4a9e;
+  --side: #d3dcef;
+  --link: #1f65c8;
+  --case: #1f65c8;
+  --data: #1f9d55;
+  --embedded: #e8a800;
+  --system: #7b8597;
+  --ok: #1e7d43;
+  --ok-bg: #e2f3e8;
+  --plan: #8a5a00;
+  --plan-bg: #fdf1d6;
+  --future: #5c667a;
+  --future-bg: #eceff4;
+  --chip: #e9e3f8;
+  --chip-ink: #4b2596;
+  --accent: #6a35c9;
+  --shadow: 0 1px 2px rgba(18, 48, 94, .08), 0 2px 8px rgba(18, 48, 94, .06);
+  --font-display: "Source Serif 4", Georgia, "Times New Roman", serif;
+  --font-body: "Open Sans", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #11151d; --surface: #1a202b; --surface-2: #222a37; --fg: #e6eaf2; --muted: #9aa4b6; --line: #2f3847;
+    --navy: #9cc0ff; --frame: #3b5bb8; --side: #26324a; --link: #8ab4ff;
+    --case: #4d8ff0; --data: #3fbf75; --embedded: #f2c230; --system: #8f99ab;
+    --ok: #6fd696; --ok-bg: #1c3526; --plan: #f2c96b; --plan-bg: #3a2f14; --future: #b4bdcc; --future-bg: #2a3240;
+    --chip: #2e2547; --chip-ink: #d3c4ff; --accent: #b79bff; --shadow: 0 1px 2px rgba(0, 0, 0, .4); color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #11151d; --surface: #1a202b; --surface-2: #222a37; --fg: #e6eaf2; --muted: #9aa4b6; --line: #2f3847;
+  --navy: #9cc0ff; --frame: #3b5bb8; --side: #26324a; --link: #8ab4ff;
+  --case: #4d8ff0; --data: #3fbf75; --embedded: #f2c230; --system: #8f99ab;
+  --ok: #6fd696; --ok-bg: #1c3526; --plan: #f2c96b; --plan-bg: #3a2f14; --future: #b4bdcc; --future-bg: #2a3240;
+  --chip: #2e2547; --chip-ink: #d3c4ff; --accent: #b79bff; --shadow: 0 1px 2px rgba(0, 0, 0, .4); color-scheme: dark;
+}
+
+body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 14px; line-height: 1.5; }
+.page {
+  max-width: 1280px; margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 20px 40px; display: grid; gap: 18px;
+}
+header { display: grid; gap: 6px; }
+.eyebrow { font-size: 12px; color: var(--muted); letter-spacing: .04em; }
+h1 { font-family: var(--font-display); font-weight: 700; font-size: clamp(26px, 4vw, 34px); color: var(--navy); margin: 0; text-wrap: balance; line-height: 1.15; }
+.intro { color: var(--muted); max-width: 72ch; margin: 0; }
+
+.board { display: grid; grid-template-columns: minmax(0, 230px) minmax(0, 1fr) minmax(0, 230px); gap: 14px; align-items: start; }
+@media (max-width: 900px) { .board { grid-template-columns: minmax(0, 1fr); } }
+
+.side { background: var(--side); border-radius: 8px; padding: 8px; display: grid; gap: 8px; }
+.side-inner { background: var(--surface); border-radius: 6px; padding: 12px; display: grid; gap: 8px; }
+.side h2, .main h2 { font-size: 12.5px; letter-spacing: .08em; text-transform: uppercase; margin: 0; color: var(--navy); display: flex; align-items: center; gap: 8px; }
+.count { font-size: 11px; min-width: 18px; height: 18px; border-radius: 99px; background: var(--surface-2); color: var(--fg); display: inline-grid; place-items: center; letter-spacing: 0; padding: 0 5px; border: 1px solid var(--line); }
+.side p.hint { margin: 0; font-size: 12px; color: var(--muted); }
+.flow { display: none; }
+@media (min-width: 901px) {
+  .flow { display: block; position: absolute; font-size: 20px; color: var(--navy); }
+}
+
+.main { border: 8px solid var(--frame); border-radius: 8px; background: var(--surface); padding: 14px 16px 18px; display: grid; gap: 12px; min-width: 0; }
+.main .sub { margin: 0; font-size: 12.5px; color: var(--muted); }
+.group-label { font-size: 12px; color: var(--muted); margin: 6px 0 0; display: flex; align-items: center; gap: 8px; }
+.group-label .dot { width: 10px; height: 10px; border-radius: 2px; background: var(--c); }
+.list { display: grid; gap: 6px; }
+
+.item {
+  --c: var(--data);
+  display: grid; grid-template-columns: 5px minmax(0, 1fr) auto; gap: 12px; align-items: center; width: 100%;
+  font: inherit; color: inherit; text-align: left; cursor: pointer;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 0 12px 0 0; min-height: 40px; box-shadow: var(--shadow);
+}
+.item:hover { border-color: var(--muted); }
+.item[aria-pressed="true"] { border-color: var(--accent); outline: 1px solid var(--accent); }
+.item:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.item .stripe { align-self: stretch; background: var(--c); border-radius: 5px 0 0 5px; }
+.item .name { padding-block: 8px; display: grid; min-width: 0; }
+.item .name small { color: var(--muted); font-size: 11.5px; font-family: var(--font-mono); overflow-wrap: anywhere; }
+.item[data-k="case"] { --c: var(--case); }
+.item[data-k="embedded"] { --c: var(--embedded); }
+.item[data-k="system"] { --c: var(--system); }
+.item.compact { min-height: 34px; box-shadow: none; grid-template-columns: 5px minmax(0, 1fr); }
+.item.compact .name { gap: 4px; }
+.item .tag { font-size: 11px; color: var(--muted); white-space: nowrap; }
+
+.pill { font-size: 11px; font-weight: 600; padding: 1px 8px; border-radius: 99px; white-space: nowrap; }
+.pill.ok { background: var(--ok-bg); color: var(--ok); }
+.pill.plan { background: var(--plan-bg); color: var(--plan); }
+.pill.future { background: var(--future-bg); color: var(--future); }
+
+.detail { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow); padding: 18px; display: grid; gap: 12px; min-width: 0; }
+.detail .head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px; }
+.detail h2 { font-family: var(--font-display); font-size: 22px; margin: 0; color: var(--navy); }
+.detail p { margin: 0; max-width: 80ch; }
+.facts { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 12.5px; color: var(--muted); }
+.facts b { color: var(--fg); font-weight: 600; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { font-size: 11.5px; padding: 1px 8px; border-radius: 99px; background: var(--chip); color: var(--chip-ink); font-weight: 600; }
+button.chip { font-family: inherit; border: 0; cursor: pointer; }
+button.chip:hover { text-decoration: underline; }
+h3 { font-size: 13px; margin: 4px 0 0; color: var(--fg); }
+.table-wrap { overflow-x: auto; }
+table { border-collapse: collapse; font-size: 13px; width: 100%; min-width: 560px; }
+th, td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-size: 12px; color: var(--muted); font-weight: 600; background: var(--surface-2); }
+td:first-child { font-family: var(--font-mono); font-size: 12px; white-space: nowrap; }
+td.type { font-family: var(--font-mono); font-size: 12px; color: var(--muted); white-space: nowrap; }
+.ref { color: var(--link); }
+code, .mono { font-family: var(--font-mono); font-size: 12px; }
+.legend { display: flex; flex-wrap: wrap; gap: 8px 18px; font-size: 12.5px; color: var(--muted); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+@media (prefers-reduced-motion: no-preference) { .item { transition: border-color .12s; } }
+</style>
+</head>
+<body>
+
+<div class="page">
+  <header>
+    <div class="eyebrow">IFK Lidingö · Matchbörsen &amp; Planbokning · kravspecifikation v1.1.1</div>
+    <h1>Matchbörsens informationsobjekt</h1>
+    <p class="intro">Applikationens data och hur den kommer in och ut. Klicka på ett objekt för att se fält, relationer och vilka processer som använder det.</p>
+  </header>
+
+  <div class="legend" id="legend"></div>
+
+  <div class="board">
+    <aside class="side" aria-labelledby="in-title">
+      <div class="side-inner">
+        <h2 id="in-title">Inkommande händelser <span class="count" id="in-count"></span></h2>
+        <p class="hint">Det som startar arbete i applikationen utan att en användare klickar i den.</p>
+        <div class="list" id="inbound"></div>
+      </div>
+    </aside>
+
+    <section class="main" aria-labelledby="app-title">
+      <h2 id="app-title">Applikationsdata</h2>
+      <p class="sub">Informationsobjekten och tabellen eller fältet de lagras i. Ärendetyperna har en egen livscykel i arbetsflödena.</p>
+      <div id="groups" class="list"></div>
+    </section>
+
+    <aside class="side" aria-labelledby="int-title">
+      <div class="side-inner">
+        <h2 id="int-title">Integrationer <span class="count" id="int-count"></span></h2>
+        <p class="hint">Externa tjänster som applikationen anropar.</p>
+        <div class="list" id="integrations"></div>
+      </div>
+    </aside>
+  </div>
+
+  <section class="detail" id="detail" aria-live="polite"></section>
+</div>
+
+<script>
+const KINDS = {
+  case: { label: 'Ärendetyp', group: 'Ärendetyper' },
+  data: { label: 'Dataobjekt', group: 'Dataobjekt' },
+  embedded: { label: 'Inbäddat', group: 'Inbäddade objekt (kopior i JSON)' },
+  system: { label: 'Systemdata', group: 'Systemdata' },
+};
+
+// f(fält, typ, beskrivning)
+const f = (name, type, text) => ({ name, type, text });
+
+const OBJECTS = [
+  {
+    id: 'match', name: 'Match', kind: 'case', table: 'matches', type: 'MatchEntity', process: ['Match (A)', 'Planbokning (B) via händelser', 'Fair Play (C) via händelser'],
+    text: 'En träningsmatch med hemmalag, plats, tid och status. Skapas av ett IFK Lidingö-lag i Spår 1 eller Spår 2. Platsen kopieras in från Anläggning och Plan, så att en senare ändring i masterdata inte ändrar en publicerad match (BR-10).',
+    rel: [['Lag', 'lag', 'hemmalag (1) och bortalag (0..1)'], ['Intresseanmälan', 'inquiry', 'har 0..n'], ['Reservation', 'reservation', '0..1, bara Spår 1'], ['Fair Play-recension', 'review', '2 efter genomförd match'], ['Kontaktuppgifter', 'contact', 'hemmalagets och valt lags']],
+    fields: [
+      f('id', 'string', 'Id, t.ex. mat_…'),
+      f('origin', 'MatchOrigin', 'NEW_WEEKEND_SLOT (Spår 1) eller OWN_TRAINING_SLOT (Spår 2)'),
+      f('homeTeamId', '→ Lag', 'Hemmalaget, alltid ett IFK Lidingö-lag (BR-07)'),
+      f('homeContact', 'Kontaktuppgifter', 'Hemmalagets ledare. Visas för valt lag efter valet'),
+      f('awayTeamId', '→ Lag?', 'Valt lag, sätts i A6 och rensas vid återbud (A7)'),
+      f('selectedOpponent', 'Kontaktuppgifter?', 'Valt lags ledare'),
+      f('gameFormat', 'GameFormat', '3 mot 3 … 11 mot 11'),
+      f('birthYear', 'number', 'Födelseår'),
+      f('category', 'TeamCategory', 'BOYS, GIRLS eller MIXED'),
+      f('openToAdjacentBirthYears', 'boolean', 'Öppen för lag ett år yngre eller äldre (BR-09)'),
+      f('matchLevel', 'Level', 'Önskad nivå på motståndet, sexgradig skala'),
+      f('durationMinutes', 'number', 'Matchens längd, 10–180 min. Sluttid = starttid + längd'),
+      f('venue', 'Plats', 'Kopia: anläggning, plan, adress, underlag, start- och sluttid i UTC'),
+      f('referee', 'RefereeArrangement', 'Vem som ordnar domare'),
+      f('kitColorHome', 'string', 'Hemmalagets matchställ'),
+      f('status', 'MatchStatus', 'RESERVATION_REQUESTED, PUBLISHED, MATCH_CONFIRMED, COMPLETED, CANCELLED, EXPIRED'),
+      f('reservationId', '→ Reservation?', 'Sätts när Planbokning svarat (Spår 1)'),
+      f('inquiriesCount', 'number', 'Antal aktiva intresseanmälningar'),
+      f('isUrgent', 'boolean', 'Röd flagga efter återbud'),
+      f('completedConfirmedAt', 'datetime?', 'När hemmalaget bekräftade "Match genomförd"'),
+      f('createdAt / updatedAt', 'datetime', 'UTC'),
+    ],
+  },
+  {
+    id: 'reservation', name: 'Reservation', kind: 'case', table: 'reservations', type: 'ReservationEntity', process: ['Planbokning (B)'],
+    text: 'Kansliets bokning av en helgtid i Spår 1. Skapas när Planbokning tar emot REQUEST_RESERVATION och följer sin egen livscykel. Kopplingen till matchen går bara via händelser.',
+    rel: [['Match', 'match', '1, via matchId'], ['Lag', 'lag', 'hemmalaget'], ['Anläggning', 'facility', 'tilldelad, 0..1'], ['Plan', 'pitch', 'tilldelad, 0..1']],
+    fields: [
+      f('id', 'string', 'Id, t.ex. res_…'),
+      f('matchId', '→ Match', 'Unik, en reservation per match'),
+      f('homeTeamId', '→ Lag', 'Hemmalaget'),
+      f('requestedDate', 'date', 'Önskat datum, lokal tid, lördag eller söndag (BR-01)'),
+      f('timeWindow', 'string', 'Önskad tid, t.ex. "10:00-11:00"'),
+      f('gameFormat / birthYear / category', '', 'Kopior från matchen, för kansliets kö'),
+      f('allocatedPitch', 'Tilldelad plan?', 'Anläggning, plan, start- och sluttid. Sätts i B2'),
+      f('opponent', 'Motståndare?', 'Klubb, lag, kontaktperson och telefon från senaste RESERVATION_ACCEPTED'),
+      f('status', 'ReservationStatus', 'REQUESTED, RESERVED, ACCEPTED, COMPLETED, REJECTED_BY_OFFICE, REVOKED_BY_DEADLINE, CANCELLED_BY_OFFICE, WITHDRAWN_BY_HOME, CLOSED_EXPIRED'),
+      f('decisionReason', 'string?', 'Kansliets orsak vid avslag eller inställning, högst 200 tecken'),
+      f('deadlineAt', 'datetime', '14-dagarsfristen: matchdatum minus 14 dagar kl 23:59:59 svensk tid'),
+      f('reservedAt', 'datetime?', 'När planen tilldelades. Styr 18-dagarspåminnelsen'),
+      f('createdAt / updatedAt', 'datetime', 'UTC'),
+    ],
+  },
+  {
+    id: 'review', name: 'Fair Play-recension', kind: 'case', table: 'fair_play_reviews', type: 'FairPlayReviewEntity', process: ['Fair Play (C)'],
+    text: 'Ett lags bedömning av motståndaren efter en genomförd match. Två per match, blinda tills båda lämnats in eller fristen gått ut (BR-05). Ingen fritext.',
+    rel: [['Match', 'match', '1'], ['Lag', 'lag', 'recenserande och recenserat lag']],
+    fields: [
+      f('id', 'string', 'Id, t.ex. rev_…'),
+      f('matchId', '→ Match', 'Unik tillsammans med reviewingTeamId'),
+      f('reviewingTeamId', '→ Lag', 'Laget som recenserar'),
+      f('reviewedTeamId', '→ Lag', 'Laget som recenseras'),
+      f('targetRole', 'HOME | AWAY', 'Det recenserade lagets roll'),
+      f('playersScore / leadersScore', '1–3', 'Delbetyg, obligatoriska'),
+      f('spectatorsScore', '1–3 | NOT_APPLICABLE', 'Publik, kan vara ej tillämpligt'),
+      f('totalScore', 'number', 'Snitt av delbetygen'),
+      f('assessedLevel', 'Level', 'Bedömd nivå på det recenserade laget'),
+      f('status', 'ReviewStatus', 'PENDING, SUBMITTED, PUBLISHED, EXPIRED'),
+      f('deadlineAt', 'datetime', '7 kalenderdagar efter MATCH_COMPLETED'),
+      f('submittedAt / publishedAt', 'datetime?', 'UTC'),
+    ],
+  },
+  {
+    id: 'inquiry', name: 'Intresseanmälan', kind: 'data', table: 'inquiries', type: 'InquiryEntity', process: ['Match (A)'],
+    text: 'Ett lags anmälan till en publicerad match. Hemmalaget väljer en av de aktiva anmälningarna.',
+    rel: [['Match', 'match', '1'], ['Lag', 'lag', 'anmälande lag'], ['Användare', 'user', 'ledaren som anmälde'], ['Kontaktuppgifter', 'contact', 'ledarens']],
+    fields: [
+      f('id', 'string', 'Id, t.ex. inq_…'),
+      f('matchId', '→ Match', ''),
+      f('teamId', '→ Lag', 'Måste matcha enligt BR-09'),
+      f('leaderUserId', '→ Användare', ''),
+      f('contact', 'Kontaktuppgifter', 'Visas för hemmalaget först när laget valts'),
+      f('status', 'InquiryStatus', 'ACTIVE, WITHDRAWN, SELECTED, REJECTED'),
+      f('createdAt / updatedAt', 'datetime', 'UTC'),
+    ],
+  },
+  {
+    id: 'lag', name: 'Lag', kind: 'data', table: 'teams', type: 'Team', process: ['Alla'],
+    text: 'Ett lag, antingen från IFK Lidingö eller ett externt lag. Skapas av en ledare. Lagprofilen räknas fram ur publicerade Fair Play-recensioner.',
+    rel: [['Lagkoppling', 'membership', 'ledare 0..n'], ['Match', 'match', 'som hemma- eller bortalag'], ['Intresseanmälan', 'inquiry', '0..n'], ['Fair Play-recension', 'review', 'lämnade och mottagna']],
+    fields: [
+      f('id', 'string', 'Id, t.ex. team_…'),
+      f('name', 'string', 'Lagnamn, t.ex. "P2015 Blå"'),
+      f('clubName', 'string', 'Klubb'),
+      f('isHomeClub', 'boolean', 'true för IFK Lidingö'),
+      f('birthYear', 'number', 'Födelseår'),
+      f('category', 'TeamCategory', 'BOYS, GIRLS eller MIXED'),
+      f('profile.assessedLevel', 'Level?', 'Median av bedömd nivå, senaste 10 (BR-13)'),
+      f('profile.fairPlayAverage', 'number?', 'Snitt av totalbetygen, senaste 10'),
+      f('profile.reviewCount', 'number', 'Antal recensioner i fönstret, högst 10'),
+      f('profile.visible', 'boolean', 'true från 3 recensioner'),
+    ],
+  },
+  {
+    id: 'membership', name: 'Lagkoppling', kind: 'data', table: 'team_memberships', type: 'TeamMembership', process: ['Kansliets godkännanden'],
+    text: 'Kopplingen mellan en ledare och ett lag. För IFK Lidingö-lag måste kansliet godkänna kopplingen innan ledaren får skapa matcher (BR-08).',
+    rel: [['Användare', 'user', 'ledaren'], ['Lag', 'lag', 'laget']],
+    fields: [
+      f('id', 'string', 'Id'),
+      f('userId', '→ Användare', 'Unik tillsammans med teamId'),
+      f('teamId', '→ Lag', ''),
+      f('approvalStatus', 'ApprovalStatus', 'NOT_REQUIRED (externt lag), PENDING, APPROVED, REJECTED'),
+      f('decidedByUserId', '→ Användare?', 'Kanslipersonen som beslutade'),
+      f('decidedAt', 'datetime?', ''),
+      f('createdAt', 'datetime', ''),
+    ],
+  },
+  {
+    id: 'user', name: 'Användare', kind: 'data', table: 'users', type: 'User', process: ['Alla'],
+    text: 'Ett konto för en ledare, kanslipersonal eller administratör. Gäster har inget konto. Telefonnummer lagras inte här utan i Kontaktuppgifter (BR-17).',
+    rel: [['Lagkoppling', 'membership', '0..n'], ['Session', 'session', '0..n']],
+    fields: [
+      f('id', 'string', 'Pseudonymt id, används i revisionsloggen'),
+      f('role', 'UserRole', 'TEAM_LEADER, OFFICE eller ADMIN'),
+      f('name', 'string', ''),
+      f('email', 'string', 'Unik'),
+      f('googleSubject', 'string?', 'Google-kontots id vid Google-inloggning'),
+      f('createdAt', 'datetime', ''),
+    ],
+  },
+  {
+    id: 'facility', name: 'Anläggning', kind: 'data', table: 'facilities', type: 'Facility', process: ['Masterdata (kansliet)', 'Match (A)', 'Planbokning (B)'],
+    text: 'En idrottsplats, t.ex. Skärsätra IP. Underhålls av kansliet (FR-B-207).',
+    rel: [['Plan', 'pitch', 'har 1..n']],
+    fields: [
+      f('id', 'string', 'Id, t.ex. fac_…'),
+      f('name', 'string', ''),
+      f('address', 'string', 'Visas på matchkortet'),
+      f('active', 'boolean', 'Inaktiva erbjuds inte'),
+    ],
+  },
+  {
+    id: 'pitch', name: 'Plan', kind: 'data', table: 'pitches', type: 'Pitch', process: ['Masterdata (kansliet)', 'Match (A)', 'Planbokning (B)'],
+    text: 'En plan på en anläggning. Kansliet erbjuds bara planer som klarar matchens spelform (AC-201.2).',
+    rel: [['Anläggning', 'facility', 'tillhör 1']],
+    fields: [
+      f('id', 'string', 'Id, t.ex. pitch_…'),
+      f('facilityId', '→ Anläggning', ''),
+      f('name', 'string', 'T.ex. "Plan 2"'),
+      f('surface', 'Surface', 'ARTIFICIAL_TURF eller NATURAL_TURF'),
+      f('supportedFormats', 'GameFormat[]', 'Spelformer planen klarar'),
+      f('active', 'boolean', ''),
+    ],
+  },
+  {
+    id: 'contact', name: 'Kontaktuppgifter', kind: 'embedded', table: 'JSON i matches och inquiries', type: 'LeaderContact', process: ['Match (A)'],
+    text: 'En kopia av ledarens kontaktuppgifter, sparad på matchen och intresseanmälan. Telefonnumret anges vid varje match och anmälan och lagras bara här (BR-17). Anonymiseras vid radering (AC-U-004.1).',
+    rel: [['Match', 'match', 'homeContact, selectedOpponent'], ['Intresseanmälan', 'inquiry', 'contact'], ['Användare', 'user', 'via userId']],
+    fields: [
+      f('userId', '→ Användare', ''),
+      f('name', 'string', ''),
+      f('club', 'string', ''),
+      f('teamName', 'string', ''),
+      f('email', 'string', ''),
+      f('phone', 'string', 'Obligatoriskt'),
+    ],
+  },
+  {
+    id: 'outbox', name: 'Outbox-händelse', kind: 'system', table: 'outbox_events, processed_events', type: 'OutboxEvent', process: ['Alla, mellan processerna'],
+    text: 'Händelser mellan processerna, skrivna i samma transaktion som tillståndsändringen (avsnitt 4.0). Varje mottagare behandlar en händelse högst en gång, i ordning per match.',
+    rel: [['Match', 'match', 'matchId och sekvensnummer']],
+    fields: [
+      f('eventId', 'string', 'Unikt id'),
+      f('eventType', 'string', 'T.ex. RESERVATION_RESERVED'),
+      f('matchId', '→ Match', ''),
+      f('sequence', 'number', 'Strikt stigande per match'),
+      f('payload', 'JSON', 'Händelsens innehåll'),
+      f('processedAt', 'datetime?', 'När alla mottagare behandlat den'),
+    ],
+  },
+  {
+    id: 'audit', name: 'Revisionslogg', kind: 'system', table: 'audit_log', type: 'AuditLogEntry', process: ['Alla'],
+    text: 'En rad per statusövergång och per ignorerad händelse. Bara tillägg, ändring och radering spärras i databasen (NFR-05). Innehåller inga namn, e-postadresser eller telefonnummer.',
+    rel: [['Användare', 'user', 'pseudonymt id']],
+    fields: [
+      f('eventId', 'string', ''),
+      f('userId', 'string', 'Pseudonymt id eller "system"'),
+      f('entityType / entityId', 'string', 'T.ex. Match, Reservation'),
+      f('transition', 'string', 'T.ex. "PUBLISHED -> MATCH_CONFIRMED (A6)"'),
+      f('occurredAt', 'datetime', 'UTC'),
+    ],
+  },
+  {
+    id: 'email', name: 'E-postkö', kind: 'system', table: 'email_outbox, reminders_sent', type: 'Email', process: ['Alla'],
+    text: 'E-post köas i samma transaktion som händelsen och skickas var 5:e sekund, akuta först (NFR-03). reminders_sent ser till att varje påminnelse bara skickas en gång.',
+    rel: [],
+    fields: [
+      f('to / subject / body', 'string', ''),
+      f('urgent', 'boolean', 'Akut, t.ex. återbud eller inställd bokning'),
+      f('createdAt / sentAt', 'datetime', ''),
+    ],
+  },
+  {
+    id: 'session', name: 'Session', kind: 'system', table: 'sessions', type: '', process: ['Inloggning'],
+    text: 'Inloggad session med httpOnly-cookie, giltig i 30 dagar.',
+    rel: [['Användare', 'user', '1']],
+    fields: [f('token', 'string', 'Slumpat'), f('userId', '→ Användare', ''), f('expiresAt', 'datetime', '')],
+  },
+];
+
+const INBOUND = [
+  { id: 'in-google', name: 'Inloggning med Google', sub: 'POST /api/auth/google', status: ['ok', 'Implementerad'],
+    text: 'Webbläsaren skickar ett ID-token från Google Identity Services. Servern verifierar det och skapar kontot vid första inloggningen. Rollen kansli eller administratör styrs av OFFICE_EMAILS och ADMIN_EMAILS.',
+    refs: ['AC-U-001.1', 'NFR-08'], touches: ['user', 'session'] },
+  { id: 'in-timer', name: 'Schemaläggare', sub: 'Runtime.tick() var 30:e s', status: ['ok', 'Implementerad'],
+    text: 'Levererar väntande händelser och kör tidsstyrda övergångar: ingen motståndare vid starttid, 48 timmar utan bekräftelse, påminnelser, 14-dagarsfristen, 18-dagarspåminnelsen och Fair Play-fristen på 7 dagar.',
+    refs: ['A12', 'A14', 'AC-107.3', 'B7', 'AC-202.1', 'C4', 'C5'], touches: ['match', 'reservation', 'review', 'email'] },
+];
+
+const INTEGRATIONS = [
+  { id: 'int-google', name: 'Google Identity Services', sub: 'google-auth-library', status: ['ok', 'Implementerad'],
+    text: 'Verifierar ID-token från Google. Kräver GOOGLE_CLIENT_ID. Utan den visas bara dev-inloggningen.',
+    refs: ['NFR-08', 'Öppen punkt 1'], touches: ['user'] },
+  { id: 'int-email', name: 'E-postleverantör', sub: 'EmailSender', status: ['plan', 'Ej vald'],
+    text: 'I dag loggar ConsoleEmailSender e-posten i stället för att skicka den. Byts mot en leverantör med HTTP-API, t.ex. Resend eller Brevo. Render blockerar SMTP på gratisplanen.',
+    refs: ['NFR-03', 'Avsnitt 9'], touches: ['email'] },
+  { id: 'int-db', name: 'Databas', sub: 'SQLite via node:sqlite', status: ['ok', 'Implementerad'],
+    text: 'All data lagras i en SQLite-fil. Byte till PostgreSQL påverkar bara infra/db.ts och några frågor.',
+    refs: ['README: Tekniska val'], touches: ['match', 'reservation', 'review'] },
+  { id: 'int-broker', name: 'Extern meddelandekö', sub: 'outbox → broker', status: ['future', 'Senare'],
+    text: 'Outbox-tabellen kan senare tömmas mot en extern broker utan att processerna ändras. Inte med i MVP 1.',
+    refs: ['4.0'], touches: ['outbox'] },
+];
+
+const esc = (x) => String(x ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+const byId = (id) => OBJECTS.find((o) => o.id === id) || INBOUND.find((o) => o.id === id) || INTEGRATIONS.find((o) => o.id === id);
+let selected = 'match';
+
+function sideItem(x) {
+  return `<button class="item compact" data-k="system" data-id="${x.id}" aria-pressed="${selected === x.id}">
+    <span class="stripe"></span>
+    <span class="name">${esc(x.name)}<small>${esc(x.sub)}</small><span><span class="pill ${x.status[0]}">${esc(x.status[1])}</span></span></span>
+  </button>`;
+}
+
+function render() {
+  document.getElementById('legend').innerHTML = Object.entries(KINDS).map(([k, v]) =>
+    `<span><i style="background: var(--${k})"></i>${v.label}</span>`).join('');
+  document.getElementById('in-count').textContent = INBOUND.length;
+  document.getElementById('int-count').textContent = INTEGRATIONS.length;
+  document.getElementById('inbound').innerHTML = INBOUND.map(sideItem).join('');
+  document.getElementById('integrations').innerHTML = INTEGRATIONS.map(sideItem).join('');
+  document.getElementById('groups').innerHTML = Object.entries(KINDS).map(([k, v]) => {
+    const items = OBJECTS.filter((o) => o.kind === k);
+    return `<div class="group-label" style="--c: var(--${k})"><span class="dot"></span>${v.group}</div>` +
+      items.map((o) => `<button class="item" data-k="${o.kind}" data-id="${o.id}" aria-pressed="${selected === o.id}">
+        <span class="stripe"></span>
+        <span class="name">${esc(o.name)}<small>${esc(o.table)}</small></span>
+        <span class="tag">${o.fields.length} fält</span>
+      </button>`).join('');
+  }).join('');
+
+  const x = byId(selected);
+  const d = document.getElementById('detail');
+  if (x.fields) {
+    d.innerHTML = `
+      <div class="head"><h2>${esc(x.name)}</h2><span class="chip">${KINDS[x.kind].label}</span></div>
+      <p>${esc(x.text)}</p>
+      <div class="facts">
+        <span>Lagras i: <b class="mono">${esc(x.table)}</b></span>
+        ${x.type ? `<span>Typ i koden: <b class="mono">${esc(x.type)}</b></span>` : ''}
+        <span>Används av: <b>${esc(x.process.join(', '))}</b></span>
+      </div>
+      ${x.rel.length ? `<h3>Relationer</h3><div class="chips">${x.rel.map(([n, id, how]) =>
+        `<button class="chip" data-id="${id}" title="Visa ${esc(n)}">${esc(n)} · ${esc(how)}</button>`).join('')}</div>` : ''}
+      <h3>Fält</h3>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Fält</th><th>Typ</th><th>Beskrivning</th></tr></thead>
+        <tbody>${x.fields.map((fl) => `<tr><td>${esc(fl.name)}</td><td class="type">${esc(fl.type)}</td><td>${esc(fl.text)}</td></tr>`).join('')}</tbody>
+      </table></div>`;
+  } else {
+    const isIn = INBOUND.includes(x);
+    d.innerHTML = `
+      <div class="head"><h2>${esc(x.name)}</h2><span class="chip">${isIn ? 'Inkommande händelse' : 'Integration'}</span><span class="pill ${x.status[0]}">${esc(x.status[1])}</span></div>
+      <p>${esc(x.text)}</p>
+      <div class="facts"><span>I koden: <b class="mono">${esc(x.sub)}</b></span></div>
+      <h3>Påverkar</h3>
+      <div class="chips">${x.touches.map((id) => `<button class="chip" data-id="${id}">${esc(byId(id).name)}</button>`).join('')}</div>
+      <h3>Krav</h3>
+      <div class="chips">${x.refs.map((r) => `<span class="chip">${esc(r)}</span>`).join('')}</div>`;
+  }
+}
+
+document.addEventListener('click', (ev) => {
+  const el = ev.target.closest('[data-id]');
+  if (!el || !byId(el.dataset.id)) return;
+  selected = el.dataset.id;
+  render();
+  document.querySelector(`.item[data-id="${selected}"]`)?.focus({ preventScroll: true });
+});
+
+try { const h = location.hash.slice(1); if (byId(h)) selected = h; } catch (e) {}
+render();
+</script>
+</body>
+</html>
