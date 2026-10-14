@@ -1,0 +1,446 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="https://www.omg.org/spec/DMN/20191111/MODEL/" xmlns:dmndi="https://www.omg.org/spec/DMN/20191111/DMNDI/" xmlns:dc="http://www.omg.org/spec/DMN/20180521/DC/" xmlns:di="http://www.omg.org/spec/DMN/20180521/DI/" xmlns:modeler="http://camunda.org/schema/modeler/1.0" id="Definitions_Matchborsen" name="Matchbörsens affärsregler" namespace="https://github.com/hoelcke/MatchAndPitchBooking" exporter="Camunda Modeler" exporterVersion="5.28.0" modeler:executionPlatform="Camunda Cloud" modeler:executionPlatformVersion="8.6.0">
+  <description>Affärsreglerna i Matchbörsen &amp; Planbokning (kravspecifikation v1.1.1) som beslutstabeller. Dokumentation: appen kör reglerna i TypeScript. Felmeddelandena är desamma som i koden.</description>
+  <inputData id="in_teamMembership" name="Lag och ledarkoppling" />
+  <inputData id="in_requestedDate" name="Begärt datum och dagens datum" />
+  <inputData id="in_origin" name="Spår" />
+  <inputData id="in_match" name="Match" />
+  <inputData id="in_inquiringTeam" name="Anmälande lag" />
+  <inputData id="in_reviews" name="Recensioner" />
+  <inputData id="in_profile" name="Lagprofil" />
+  <inputData id="in_pitch" name="Plan och reservation" />
+  <inputData id="in_event" name="Notifiering" />
+  <decision id="behorighet" name="Behörighet att skapa match">
+    <description>BR-07, BR-08, AC-101.5. Kod: validateMatchFields i src/server/modules/matches.ts.</description>
+    <informationRequirement id="IR_behorighet_in_teamMembership"><requiredInput href="#in_teamMembership" /></informationRequirement>
+    <decisionTable id="DT_behorighet" hitPolicy="UNIQUE">
+      <input id="In_behorighet_0" label="Lag tillhör IFK Lidingö"><inputExpression id="InExpr_behorighet_0" typeRef="boolean"><text>team.isHomeClub</text></inputExpression></input>
+      <input id="In_behorighet_1" label="Kopplingens status"><inputExpression id="InExpr_behorighet_1" typeRef="string"><text>membership.approvalStatus</text></inputExpression></input>
+      <output id="Out_behorighet_0" name="allowed" label="Tillåtet" typeRef="boolean" />
+      <output id="Out_behorighet_1" name="reason" label="Orsak" typeRef="string" />
+      <rule id="Rule_behorighet_1">
+        <description>BR-07</description>
+        <inputEntry id="IE_behorighet_1_0"><text>false</text></inputEntry>
+        <inputEntry id="IE_behorighet_1_1"><text>-</text></inputEntry>
+        <outputEntry id="OE_behorighet_1_0"><text>false</text></outputEntry>
+        <outputEntry id="OE_behorighet_1_1"><text>&quot;Endast IFK Lidingö-lag kan skapa matcher&quot;</text></outputEntry>
+      </rule>
+      <rule id="Rule_behorighet_2">
+        <description>BR-08: godkänd koppling</description>
+        <inputEntry id="IE_behorighet_2_0"><text>true</text></inputEntry>
+        <inputEntry id="IE_behorighet_2_1"><text>&quot;APPROVED&quot;</text></inputEntry>
+        <outputEntry id="OE_behorighet_2_0"><text>true</text></outputEntry>
+        <outputEntry id="OE_behorighet_2_1"><text>&quot;&quot;</text></outputEntry>
+      </rule>
+      <rule id="Rule_behorighet_3">
+        <description>BR-08, AC-101.5</description>
+        <inputEntry id="IE_behorighet_3_0"><text>true</text></inputEntry>
+        <inputEntry id="IE_behorighet_3_1"><text>not(&quot;APPROVED&quot;)</text></inputEntry>
+        <outputEntry id="OE_behorighet_3_0"><text>false</text></outputEntry>
+        <outputEntry id="OE_behorighet_3_1"><text>&quot;Din koppling till laget är inte godkänd av kansliet&quot;</text></outputEntry>
+      </rule>
+    </decisionTable>
+  </decision>
+  <decision id="helgtid" name="Helgtid tillåten (Spår 1)">
+    <description>BR-01, BR-06, AC-101.2, AC-101.4. Datum räknas i Europe/Stockholm. Kod: createWeekendSlotMatch.</description>
+    <informationRequirement id="IR_helgtid_in_requestedDate"><requiredInput href="#in_requestedDate" /></informationRequirement>
+    <decisionTable id="DT_helgtid" hitPolicy="FIRST">
+      <input id="In_helgtid_0" label="Veckodag"><inputExpression id="InExpr_helgtid_0" typeRef="string"><text>day of week(requestedDate)</text></inputExpression></input>
+      <input id="In_helgtid_1" label="Minst 21 dagar till matchdatum"><inputExpression id="InExpr_helgtid_1" typeRef="boolean"><text>requestedDate - today &gt;= duration(&quot;P21D&quot;)</text></inputExpression></input>
+      <output id="Out_helgtid_0" name="allowed" label="Tillåtet" typeRef="boolean" />
+      <output id="Out_helgtid_1" name="reason" label="Orsak" typeRef="string" />
+      <rule id="Rule_helgtid_1">
+        <description>BR-01, AC-101.2</description>
+        <inputEntry id="IE_helgtid_1_0"><text>not(&quot;Saturday&quot;, &quot;Sunday&quot;)</text></inputEntry>
+        <inputEntry id="IE_helgtid_1_1"><text>-</text></inputEntry>
+        <outputEntry id="OE_helgtid_1_0"><text>false</text></outputEntry>
+        <outputEntry id="OE_helgtid_1_1"><text>&quot;Träningsmatchtider tilldelas endast under helger&quot;</text></outputEntry>
+      </rule>
+      <rule id="Rule_helgtid_2">
+        <description>BR-06, AC-101.4</description>
+        <inputEntry id="IE_helgtid_2_0"><text>-</text></inputEntry>
+        <inputEntry id="IE_helgtid_2_1"><text>false</text></inputEntry>
+        <outputEntry id="OE_helgtid_2_0"><text>false</text></outputEntry>
+        <outputEntry id="OE_helgtid_2_1"><text>&quot;Helgtider måste begäras minst 21 dagar i förväg&quot;</text></outputEntry>
+      </rule>
+      <rule id="Rule_helgtid_3">
+        <description>Lördag eller söndag minst 21 dagar fram</description>
+        <inputEntry id="IE_helgtid_3_0"><text>-</text></inputEntry>
+        <inputEntry id="IE_helgtid_3_1"><text>true</text></inputEntry>
+        <outputEntry id="OE_helgtid_3_0"><text>true</text></outputEntry>
+        <outputEntry id="OE_helgtid_3_1"><text>&quot;&quot;</text></outputEntry>
+      </rule>
+    </decisionTable>
+  </decision>
+  <decision id="skapaMatch" name="Kan matchen skapas?">
+    <description>FR-A-101, A1, A2. Spår 1 = NEW_WEEKEND_SLOT, Spår 2 = OWN_TRAINING_SLOT.</description>
+    <informationRequirement id="IR_skapaMatch_behorighet"><requiredDecision href="#behorighet" /></informationRequirement>
+    <informationRequirement id="IR_skapaMatch_helgtid"><requiredDecision href="#helgtid" /></informationRequirement>
+    <informationRequirement id="IR_skapaMatch_in_origin"><requiredInput href="#in_origin" /></informationRequirement>
+    <decisionTable id="DT_skapaMatch" hitPolicy="FIRST">
+      <input id="In_skapaMatch_0" label="Behörig"><inputExpression id="InExpr_skapaMatch_0" typeRef="boolean"><text>behorighet.allowed</text></inputExpression></input>
+      <input id="In_skapaMatch_1" label="Spår"><inputExpression id="InExpr_skapaMatch_1" typeRef="string"><text>origin</text></inputExpression></input>
+      <input id="In_skapaMatch_2" label="Helgtid tillåten"><inputExpression id="InExpr_skapaMatch_2" typeRef="boolean"><text>helgtid.allowed</text></inputExpression></input>
+      <output id="Out_skapaMatch_0" name="allowed" label="Tillåtet" typeRef="boolean" />
+      <output id="Out_skapaMatch_1" name="reason" label="Orsak" typeRef="string" />
+      <output id="Out_skapaMatch_2" name="status" label="Status efter skapande" typeRef="string" />
+      <rule id="Rule_skapaMatch_1">
+        <description>Inte behörig</description>
+        <inputEntry id="IE_skapaMatch_1_0"><text>false</text></inputEntry>
+        <inputEntry id="IE_skapaMatch_1_1"><text>-</text></inputEntry>
+        <inputEntry id="IE_skapaMatch_1_2"><text>-</text></inputEntry>
+        <outputEntry id="OE_skapaMatch_1_0"><text>false</text></outputEntry>
+        <outputEntry id="OE_skapaMatch_1_1"><text>behorighet.reason</text></outputEntry>
+        <outputEntry id="OE_skapaMatch_1_2"><text>null</text></outputEntry>
+      </rule>
+      <rule id="Rule_skapaMatch_2">
+        <description>Spår 1: helgtiden uppfyller inte reglerna</description>
+        <inputEntry id="IE_skapaMatch_2_0"><text>true</text></inputEntry>
+        <inputEntry id="IE_skapaMatch_2_1"><text>&quot;NEW_WEEKEND_SLOT&quot;</text></inputEntry>
+        <inputEntry id="IE_skapaMatch_2_2"><text>false</text></inputEntry>
+        <outputEntry id="OE_skapaMatch_2_0"><text>false</text></outputEntry>
+        <outputEntry id="OE_skapaMatch_2_1"><text>helgtid.reason</text></outputEntry>
+        <outputEntry id="OE_skapaMatch_2_2"><text>null</text></outputEntry>
+      </rule>
+      <rule id="Rule_skapaMatch_3">
+        <description>A1: förfrågan till kansliet</description>
+        <inputEntry id="IE_skapaMatch_3_0"><text>true</text></inputEntry>
+        <inputEntry id="IE_skapaMatch_3_1"><text>&quot;NEW_WEEKEND_SLOT&quot;</text></inputEntry>
+        <inputEntry id="IE_skapaMatch_3_2"><text>true</text></inputEntry>
+        <outputEntry id="OE_skapaMatch_3_0"><text>true</text></outputEntry>
+        <outputEntry id="OE_skapaMatch_3_1"><text>&quot;&quot;</text></outputEntry>
+        <outputEntry id="OE_skapaMatch_3_2"><text>&quot;RESERVATION_REQUESTED&quot;</text></outputEntry>
+      </rule>
+      <rule id="Rule_skapaMatch_4">
+        <description>A2: publiceras direkt</description>
+        <inputEntry id="IE_skapaMatch_4_0"><text>true</text></inputEntry>
+        <inputEntry id="IE_skapaMatch_4_1"><text>&quot;OWN_TRAINING_SLOT&quot;</text></inputEntry>
+        <inputEntry id="IE_skapaMatch_4_2"><text>-</text></inputEntry>
+        <outputEntry id="OE_skapaMatch_4_0"><text>true</text></outputEntry>
+        <outputEntry id="OE_skapaMatch_4_1"><text>&quot;&quot;</text></outputEntry>
+        <outputEntry id="OE_skapaMatch_4_2"><text>&quot;PUBLISHED&quot;</text></outputEntry>
+      </rule>
+    </decisionTable>
+  </decision>
+  <decision id="kompatibel" name="Matchkompatibilitet">
+    <description>BR-09. Kod: isCompatible i src/shared/rules.ts.</description>
+    <informationRequirement id="IR_kompatibel_in_match"><requiredInput href="#in_match" /></informationRequirement>
+    <informationRequirement id="IR_kompatibel_in_inquiringTeam"><requiredInput href="#in_inquiringTeam" /></informationRequirement>
+    <decisionTable id="DT_kompatibel" hitPolicy="FIRST">
+      <input id="In_kompatibel_0" label="Samma kategori"><inputExpression id="InExpr_kompatibel_0" typeRef="boolean"><text>match.category = team.category</text></inputExpression></input>
+      <input id="In_kompatibel_1" label="Skillnad i födelseår"><inputExpression id="InExpr_kompatibel_1" typeRef="number"><text>abs(match.birthYear - team.birthYear)</text></inputExpression></input>
+      <input id="In_kompatibel_2" label="Öppen för ett år yngre eller äldre"><inputExpression id="InExpr_kompatibel_2" typeRef="boolean"><text>match.openToAdjacentBirthYears</text></inputExpression></input>
+      <output id="Out_kompatibel_0" name="compatible" label="Kompatibelt" typeRef="boolean" />
+      <rule id="Rule_kompatibel_1">
+        <description>Olika kategori. MIXED matchar bara MIXED (öppen punkt 4)</description>
+        <inputEntry id="IE_kompatibel_1_0"><text>false</text></inputEntry>
+        <inputEntry id="IE_kompatibel_1_1"><text>-</text></inputEntry>
+        <inputEntry id="IE_kompatibel_1_2"><text>-</text></inputEntry>
+        <outputEntry id="OE_kompatibel_1_0"><text>false</text></outputEntry>
+      </rule>
+      <rule id="Rule_kompatibel_2">
+        <description>Samma födelseår</description>
+        <inputEntry id="IE_kompatibel_2_0"><text>true</text></inputEntry>
+        <inputEntry id="IE_kompatibel_2_1"><text>0</text></inputEntry>
+        <inputEntry id="IE_kompatibel_2_2"><text>-</text></inputEntry>
+        <outputEntry id="OE_kompatibel_2_0"><text>true</text></outputEntry>
+      </rule>
+      <rule id="Rule_kompatibel_3">
+        <description>Ett år yngre eller äldre när matchen är öppen för det</description>
+        <inputEntry id="IE_kompatibel_3_0"><text>true</text></inputEntry>
+        <inputEntry id="IE_kompatibel_3_1"><text>1</text></inputEntry>
+        <inputEntry id="IE_kompatibel_3_2"><text>true</text></inputEntry>
+        <outputEntry id="OE_kompatibel_3_0"><text>true</text></outputEntry>
+      </rule>
+      <rule id="Rule_kompatibel_4">
+        <description>Annars inte</description>
+        <inputEntry id="IE_kompatibel_4_0"><text>true</text></inputEntry>
+        <inputEntry id="IE_kompatibel_4_1"><text>-</text></inputEntry>
+        <inputEntry id="IE_kompatibel_4_2"><text>-</text></inputEntry>
+        <outputEntry id="OE_kompatibel_4_0"><text>false</text></outputEntry>
+      </rule>
+    </decisionTable>
+  </decision>
+  <decision id="anmalan" name="Intresseanmälan tillåten">
+    <description>AC-103.1, BR-09. Kod: createInquiry i src/server/modules/matches.ts.</description>
+    <informationRequirement id="IR_anmalan_kompatibel"><requiredDecision href="#kompatibel" /></informationRequirement>
+    <informationRequirement id="IR_anmalan_in_match"><requiredInput href="#in_match" /></informationRequirement>
+    <informationRequirement id="IR_anmalan_in_inquiringTeam"><requiredInput href="#in_inquiringTeam" /></informationRequirement>
+    <decisionTable id="DT_anmalan" hitPolicy="FIRST">
+      <input id="In_anmalan_0" label="Matchens status"><inputExpression id="InExpr_anmalan_0" typeRef="string"><text>match.status</text></inputExpression></input>
+      <input id="In_anmalan_1" label="Starttid passerad"><inputExpression id="InExpr_anmalan_1" typeRef="boolean"><text>match.startTime &lt;= now</text></inputExpression></input>
+      <input id="In_anmalan_2" label="Laget är hemmalag"><inputExpression id="InExpr_anmalan_2" typeRef="boolean"><text>team.id = match.homeTeamId</text></inputExpression></input>
+      <input id="In_anmalan_3" label="Kompatibelt"><inputExpression id="InExpr_anmalan_3" typeRef="boolean"><text>kompatibel</text></inputExpression></input>
+      <input id="In_anmalan_4" label="Aktiv anmälan finns"><inputExpression id="InExpr_anmalan_4" typeRef="boolean"><text>hasActiveInquiry</text></inputExpression></input>
+      <output id="Out_anmalan_0" name="allowed" label="Tillåtet" typeRef="boolean" />
+      <output id="Out_anmalan_1" name="reason" label="Orsak" typeRef="string" />
+      <rule id="Rule_anmalan_1">
+        <description>Bara PUBLISHED</description>
+        <inputEntry id="IE_anmalan_1_0"><text>not(&quot;PUBLISHED&quot;)</text></inputEntry>
+        <inputEntry id="IE_anmalan_1_1"><text>-</text></inputEntry>
+        <inputEntry id="IE_anmalan_1_2"><text>-</text></inputEntry>
+        <inputEntry id="IE_anmalan_1_3"><text>-</text></inputEntry>
+        <inputEntry id="IE_anmalan_1_4"><text>-</text></inputEntry>
+        <outputEntry id="OE_anmalan_1_0"><text>false</text></outputEntry>
+        <outputEntry id="OE_anmalan_1_1"><text>&quot;Matchen tar inte emot intresseanmälningar&quot;</text></outputEntry>
+      </rule>
+      <rule id="Rule_anmalan_2">
+        <description>Starttiden har passerat</description>
+        <inputEntry id="IE_anmalan_2_0"><text>-</text></inputEntry>
+        <inputEntry id="IE_anmalan_2_1"><text>true</text></inputEntry>
+        <inputEntry id="IE_anmalan_2_2"><text>-</text></inputEntry>
+        <inputEntry id="IE_anmalan_2_3"><text>-</text></inputEntry>
+        <inputEntry id="IE_anmalan_2_4"><text>-</text></inputEntry>
+        <outputEntry id="OE_anmalan_2_0"><text>false</text></outputEntry>
+        <outputEntry id="OE_anmalan_2_1"><text>&quot;Matchen tar inte emot intresseanmälningar&quot;</text></outputEntry>
+      </rule>
+      <rule id="Rule_anmalan_3">
+        <inputEntry id="IE_anmalan_3_0"><text>-</text></inputEntry>
+        <inputEntry id="IE_anmalan_3_1"><text>-</text></inputEntry>
+        <inputEntry id="IE_anmalan_3_2"><text>true</text></inputEntry>
+        <inputEntry id="IE_anmalan_3_3"><text>-</text></inputEntry>
+        <inputEntry id="IE_anmalan_3_4"><text>-</text></inputEntry>
+        <outputEntry id="OE_anmalan_3_0"><text>false</text></outputEntry>
+        <outputEntry id="OE_anmalan_3_1"><text>&quot;Hemmalaget kan inte anmäla intresse till sin egen match&quot;</text></outputEntry>
+      </rule>
+      <rule id="Rule_anmalan_4">
+        <description>BR-09</description>
+        <inputEntry id="IE_anmalan_4_0"><text>-</text></inputEntry>
+        <inputEntry id="IE_anmalan_4_1"><text>-</text></inputEntry>
+        <inputEntry id="IE_anmalan_4_2"><text>-</text></inputEntry>
+        <inputEntry id="IE_anmalan_4_3"><text>false</text></inputEntry>
+        <inputEntry id="IE_anmalan_4_4"><text>-</text></inputEntry>
+        <outputEntry id="OE_anmalan_4_0"><text>false</text></outputEntry>
+        <outputEntry id="OE_anmalan_4_1"><text>&quot;Laget matchar inte matchens kategori och födelseår&quot;</text></outputEntry>
+      </rule>
+      <rule id="Rule_anmalan_5">
+        <description>ACTIVE eller SELECTED</description>
+        <inputEntry id="IE_anmalan_5_0"><text>-</text></inputEntry>
+        <inputEntry id="IE_anmalan_5_1"><text>-</text></inputEntry>
+        <inputEntry id="IE_anmalan_5_2"><text>-</text></inputEntry>
+        <inputEntry id="IE_anmalan_5_3"><text>-</text></inputEntry>
+        <inputEntry id="IE_anmalan_5_4"><text>true</text></inputEntry>
+        <outputEntry id="OE_anmalan_5_0"><text>false</text></outputEntry>
+        <outputEntry id="OE_anmalan_5_1"><text>&quot;Laget har redan en aktiv intresseanmälan&quot;</text></outputEntry>
+      </rule>
+      <rule id="Rule_anmalan_6">
+        <description>AC-103.1</description>
+        <inputEntry id="IE_anmalan_6_0"><text>-</text></inputEntry>
+        <inputEntry id="IE_anmalan_6_1"><text>-</text></inputEntry>
+        <inputEntry id="IE_anmalan_6_2"><text>-</text></inputEntry>
+        <inputEntry id="IE_anmalan_6_3"><text>-</text></inputEntry>
+        <inputEntry id="IE_anmalan_6_4"><text>-</text></inputEntry>
+        <outputEntry id="OE_anmalan_6_0"><text>true</text></outputEntry>
+        <outputEntry id="OE_anmalan_6_1"><text>&quot;&quot;</text></outputEntry>
+      </rule>
+    </decisionTable>
+  </decision>
+  <decision id="avbokning" name="Får hemmalaget avboka?">
+    <description>FR-A-105, A5, A8, A9, BR-10. I Spår 1 skickas RESERVATION_WITHDRAWN. Kod: cancelMatch.</description>
+    <informationRequirement id="IR_avbokning_in_match"><requiredInput href="#in_match" /></informationRequirement>
+    <decisionTable id="DT_avbokning" hitPolicy="FIRST">
+      <input id="In_avbokning_0" label="Matchens status"><inputExpression id="InExpr_avbokning_0" typeRef="string"><text>match.status</text></inputExpression></input>
+      <input id="In_avbokning_1" label="Starttid passerad"><inputExpression id="InExpr_avbokning_1" typeRef="boolean"><text>match.startTime &lt;= now</text></inputExpression></input>
+      <output id="Out_avbokning_0" name="allowed" label="Tillåtet" typeRef="boolean" />
+      <output id="Out_avbokning_1" name="rule" label="Regel" typeRef="string" />
+      <rule id="Rule_avbokning_1">
+        <description>Spår 1 innan plan tilldelats</description>
+        <inputEntry id="IE_avbokning_1_0"><text>&quot;RESERVATION_REQUESTED&quot;</text></inputEntry>
+        <inputEntry id="IE_avbokning_1_1"><text>-</text></inputEntry>
+        <outputEntry id="OE_avbokning_1_0"><text>true</text></outputEntry>
+        <outputEntry id="OE_avbokning_1_1"><text>&quot;A5&quot;</text></outputEntry>
+      </rule>
+      <rule id="Rule_avbokning_2">
+        <inputEntry id="IE_avbokning_2_0"><text>&quot;PUBLISHED&quot;</text></inputEntry>
+        <inputEntry id="IE_avbokning_2_1"><text>false</text></inputEntry>
+        <outputEntry id="OE_avbokning_2_0"><text>true</text></outputEntry>
+        <outputEntry id="OE_avbokning_2_1"><text>&quot;A8&quot;</text></outputEntry>
+      </rule>
+      <rule id="Rule_avbokning_3">
+        <inputEntry id="IE_avbokning_3_0"><text>&quot;MATCH_CONFIRMED&quot;</text></inputEntry>
+        <inputEntry id="IE_avbokning_3_1"><text>false</text></inputEntry>
+        <outputEntry id="OE_avbokning_3_0"><text>true</text></outputEntry>
+        <outputEntry id="OE_avbokning_3_1"><text>&quot;A9&quot;</text></outputEntry>
+      </rule>
+      <rule id="Rule_avbokning_4">
+        <description>Slutläge eller starttid passerad</description>
+        <inputEntry id="IE_avbokning_4_0"><text>-</text></inputEntry>
+        <inputEntry id="IE_avbokning_4_1"><text>-</text></inputEntry>
+        <outputEntry id="OE_avbokning_4_0"><text>false</text></outputEntry>
+        <outputEntry id="OE_avbokning_4_1"><text>null</text></outputEntry>
+      </rule>
+    </decisionTable>
+  </decision>
+  <decision id="recension" name="Recensionens utfall">
+    <description>Avsnitt 3.3, C3–C5, BR-05. Kod: src/server/modules/fairplay.ts.</description>
+    <informationRequirement id="IR_recension_in_reviews"><requiredInput href="#in_reviews" /></informationRequirement>
+    <decisionTable id="DT_recension" hitPolicy="FIRST">
+      <input id="In_recension_0" label="Egen recension inlämnad"><inputExpression id="InExpr_recension_0" typeRef="boolean"><text>ownSubmitted</text></inputExpression></input>
+      <input id="In_recension_1" label="Motpartens recension inlämnad"><inputExpression id="InExpr_recension_1" typeRef="boolean"><text>otherSubmitted</text></inputExpression></input>
+      <input id="In_recension_2" label="7-dagarsfristen passerad"><inputExpression id="InExpr_recension_2" typeRef="boolean"><text>deadlinePassed</text></inputExpression></input>
+      <output id="Out_recension_0" name="status" label="Status" typeRef="string" />
+      <output id="Out_recension_1" name="rule" label="Regel" typeRef="string" />
+      <rule id="Rule_recension_1">
+        <description>Båda inlämnade: räknas in samtidigt</description>
+        <inputEntry id="IE_recension_1_0"><text>true</text></inputEntry>
+        <inputEntry id="IE_recension_1_1"><text>true</text></inputEntry>
+        <inputEntry id="IE_recension_1_2"><text>-</text></inputEntry>
+        <outputEntry id="OE_recension_1_0"><text>&quot;PUBLISHED&quot;</text></outputEntry>
+        <outputEntry id="OE_recension_1_1"><text>&quot;C3&quot;</text></outputEntry>
+      </rule>
+      <rule id="Rule_recension_2">
+        <description>Bara egen inlämnad när fristen passerat</description>
+        <inputEntry id="IE_recension_2_0"><text>true</text></inputEntry>
+        <inputEntry id="IE_recension_2_1"><text>false</text></inputEntry>
+        <inputEntry id="IE_recension_2_2"><text>true</text></inputEntry>
+        <outputEntry id="OE_recension_2_0"><text>&quot;PUBLISHED&quot;</text></outputEntry>
+        <outputEntry id="OE_recension_2_1"><text>&quot;C4&quot;</text></outputEntry>
+      </rule>
+      <rule id="Rule_recension_3">
+        <description>Ej inlämnad i tid</description>
+        <inputEntry id="IE_recension_3_0"><text>false</text></inputEntry>
+        <inputEntry id="IE_recension_3_1"><text>-</text></inputEntry>
+        <inputEntry id="IE_recension_3_2"><text>true</text></inputEntry>
+        <outputEntry id="OE_recension_3_0"><text>&quot;EXPIRED&quot;</text></outputEntry>
+        <outputEntry id="OE_recension_3_1"><text>&quot;C5&quot;</text></outputEntry>
+      </rule>
+      <rule id="Rule_recension_4">
+        <description>Dold i väntan på motparten</description>
+        <inputEntry id="IE_recension_4_0"><text>true</text></inputEntry>
+        <inputEntry id="IE_recension_4_1"><text>false</text></inputEntry>
+        <inputEntry id="IE_recension_4_2"><text>false</text></inputEntry>
+        <outputEntry id="OE_recension_4_0"><text>&quot;SUBMITTED&quot;</text></outputEntry>
+        <outputEntry id="OE_recension_4_1"><text>&quot;BR-05&quot;</text></outputEntry>
+      </rule>
+      <rule id="Rule_recension_5">
+        <description>Att fylla i</description>
+        <inputEntry id="IE_recension_5_0"><text>false</text></inputEntry>
+        <inputEntry id="IE_recension_5_1"><text>-</text></inputEntry>
+        <inputEntry id="IE_recension_5_2"><text>false</text></inputEntry>
+        <outputEntry id="OE_recension_5_0"><text>&quot;PENDING&quot;</text></outputEntry>
+        <outputEntry id="OE_recension_5_1"><text>null</text></outputEntry>
+      </rule>
+    </decisionTable>
+  </decision>
+  <decision id="lagprofil" name="Lagprofil synlig">
+    <description>BR-13, AC-303.2. Fönstret är de senaste 10 recensionerna. Bedömd nivå = median, Fair Play = snitt av totalbetygen.</description>
+    <informationRequirement id="IR_lagprofil_in_profile"><requiredInput href="#in_profile" /></informationRequirement>
+    <decisionTable id="DT_lagprofil" hitPolicy="UNIQUE">
+      <input id="In_lagprofil_0" label="Antal recensioner i fönstret"><inputExpression id="InExpr_lagprofil_0" typeRef="number"><text>reviewCount</text></inputExpression></input>
+      <output id="Out_lagprofil_0" name="visible" label="Synlig" typeRef="boolean" />
+      <rule id="Rule_lagprofil_1">
+        <description>BR-13, AC-303.2</description>
+        <inputEntry id="IE_lagprofil_1_0"><text>&gt;= 3</text></inputEntry>
+        <outputEntry id="OE_lagprofil_1_0"><text>true</text></outputEntry>
+      </rule>
+      <rule id="Rule_lagprofil_2">
+        <description>Inga värden visas</description>
+        <inputEntry id="IE_lagprofil_2_0"><text>&lt; 3</text></inputEntry>
+        <outputEntry id="OE_lagprofil_2_0"><text>false</text></outputEntry>
+      </rule>
+    </decisionTable>
+  </decision>
+  <decision id="planErbjuds" name="Plan erbjuds vid tilldelning">
+    <description>B2, AC-201.2, AC-207.1. Överlapp ger bara en varning och påverkar inte urvalet. Kod: allocatePitch.</description>
+    <informationRequirement id="IR_planErbjuds_in_pitch"><requiredInput href="#in_pitch" /></informationRequirement>
+    <decisionTable id="DT_planErbjuds" hitPolicy="FIRST">
+      <input id="In_planErbjuds_0" label="Planen aktiv"><inputExpression id="InExpr_planErbjuds_0" typeRef="boolean"><text>pitch.active</text></inputExpression></input>
+      <input id="In_planErbjuds_1" label="Anläggningen aktiv"><inputExpression id="InExpr_planErbjuds_1" typeRef="boolean"><text>facility.active</text></inputExpression></input>
+      <input id="In_planErbjuds_2" label="Klarar spelformen"><inputExpression id="InExpr_planErbjuds_2" typeRef="boolean"><text>list contains(pitch.supportedFormats, reservation.gameFormat)</text></inputExpression></input>
+      <output id="Out_planErbjuds_0" name="offered" label="Erbjuds" typeRef="boolean" />
+      <rule id="Rule_planErbjuds_1">
+        <description>Inaktiv plan (AC-207.1)</description>
+        <inputEntry id="IE_planErbjuds_1_0"><text>false</text></inputEntry>
+        <inputEntry id="IE_planErbjuds_1_1"><text>-</text></inputEntry>
+        <inputEntry id="IE_planErbjuds_1_2"><text>-</text></inputEntry>
+        <outputEntry id="OE_planErbjuds_1_0"><text>false</text></outputEntry>
+      </rule>
+      <rule id="Rule_planErbjuds_2">
+        <description>Inaktiv anläggning</description>
+        <inputEntry id="IE_planErbjuds_2_0"><text>-</text></inputEntry>
+        <inputEntry id="IE_planErbjuds_2_1"><text>false</text></inputEntry>
+        <inputEntry id="IE_planErbjuds_2_2"><text>-</text></inputEntry>
+        <outputEntry id="OE_planErbjuds_2_0"><text>false</text></outputEntry>
+      </rule>
+      <rule id="Rule_planErbjuds_3">
+        <description>Planen stödjer inte spelformen</description>
+        <inputEntry id="IE_planErbjuds_3_0"><text>-</text></inputEntry>
+        <inputEntry id="IE_planErbjuds_3_1"><text>-</text></inputEntry>
+        <inputEntry id="IE_planErbjuds_3_2"><text>false</text></inputEntry>
+        <outputEntry id="OE_planErbjuds_3_0"><text>false</text></outputEntry>
+      </rule>
+      <rule id="Rule_planErbjuds_4">
+        <description>AC-201.2</description>
+        <inputEntry id="IE_planErbjuds_4_0"><text>true</text></inputEntry>
+        <inputEntry id="IE_planErbjuds_4_1"><text>true</text></inputEntry>
+        <inputEntry id="IE_planErbjuds_4_2"><text>true</text></inputEntry>
+        <outputEntry id="OE_planErbjuds_4_0"><text>true</text></outputEntry>
+      </rule>
+    </decisionTable>
+  </decision>
+  <decision id="akut" name="E-postens prioritet">
+    <description>NFR-03. Kod: queueEmails(..., { urgent: true }).</description>
+    <informationRequirement id="IR_akut_in_event"><requiredInput href="#in_event" /></informationRequirement>
+    <decisionTable id="DT_akut" hitPolicy="FIRST">
+      <input id="In_akut_0" label="Notifiering"><inputExpression id="InExpr_akut_0" typeRef="string"><text>notification</text></inputExpression></input>
+      <output id="Out_akut_0" name="urgent" label="Akut" typeRef="boolean" />
+      <output id="Out_akut_1" name="deliverWithin" label="Levereras inom" typeRef="string" />
+      <rule id="Rule_akut_1">
+        <description>Återbud från valt lag, notis #9 (NFR-03)</description>
+        <inputEntry id="IE_akut_1_0"><text>&quot;WITHDRAW_AS_OPPONENT&quot;</text></inputEntry>
+        <outputEntry id="OE_akut_1_0"><text>true</text></outputEntry>
+        <outputEntry id="OE_akut_1_1"><text>&quot;30 s&quot;</text></outputEntry>
+      </rule>
+      <rule id="Rule_akut_2">
+        <description>Kansliet ställer in, notis #13 ([FÖRSLAG] i NFR-03)</description>
+        <inputEntry id="IE_akut_2_0"><text>&quot;RESERVATION_CANCELLED_BY_OFFICE&quot;</text></inputEntry>
+        <outputEntry id="OE_akut_2_0"><text>true</text></outputEntry>
+        <outputEntry id="OE_akut_2_1"><text>&quot;30 s&quot;</text></outputEntry>
+      </rule>
+      <rule id="Rule_akut_3">
+        <description>Övriga händelser</description>
+        <inputEntry id="IE_akut_3_0"><text>-</text></inputEntry>
+        <outputEntry id="OE_akut_3_0"><text>false</text></outputEntry>
+        <outputEntry id="OE_akut_3_1"><text>&quot;60 s&quot;</text></outputEntry>
+      </rule>
+    </decisionTable>
+  </decision>
+  <dmndi:DMNDI>
+    <dmndi:DMNDiagram id="DRD_Matchborsen">
+      <dmndi:DMNShape id="in_teamMembership_di" dmnElementRef="in_teamMembership"><dc:Bounds height="45" width="125" x="157" y="470" /></dmndi:DMNShape>
+      <dmndi:DMNShape id="in_requestedDate_di" dmnElementRef="in_requestedDate"><dc:Bounds height="45" width="125" x="357" y="470" /></dmndi:DMNShape>
+      <dmndi:DMNShape id="in_origin_di" dmnElementRef="in_origin"><dc:Bounds height="45" width="125" x="505" y="285" /></dmndi:DMNShape>
+      <dmndi:DMNShape id="in_match_di" dmnElementRef="in_match"><dc:Bounds height="45" width="125" x="1007" y="470" /></dmndi:DMNShape>
+      <dmndi:DMNShape id="in_inquiringTeam_di" dmnElementRef="in_inquiringTeam"><dc:Bounds height="45" width="125" x="777" y="470" /></dmndi:DMNShape>
+      <dmndi:DMNShape id="in_reviews_di" dmnElementRef="in_reviews"><dc:Bounds height="45" width="125" x="1307" y="285" /></dmndi:DMNShape>
+      <dmndi:DMNShape id="in_profile_di" dmnElementRef="in_profile"><dc:Bounds height="45" width="125" x="1557" y="285" /></dmndi:DMNShape>
+      <dmndi:DMNShape id="in_pitch_di" dmnElementRef="in_pitch"><dc:Bounds height="45" width="125" x="1307" y="605" /></dmndi:DMNShape>
+      <dmndi:DMNShape id="in_event_di" dmnElementRef="in_event"><dc:Bounds height="45" width="125" x="1557" y="605" /></dmndi:DMNShape>
+      <dmndi:DMNShape id="behorighet_di" dmnElementRef="behorighet"><dc:Bounds height="80" width="180" x="100" y="260" /></dmndi:DMNShape>
+      <dmndi:DMNShape id="helgtid_di" dmnElementRef="helgtid"><dc:Bounds height="80" width="180" x="300" y="260" /></dmndi:DMNShape>
+      <dmndi:DMNShape id="skapaMatch_di" dmnElementRef="skapaMatch"><dc:Bounds height="80" width="180" x="300" y="80" /></dmndi:DMNShape>
+      <dmndi:DMNShape id="kompatibel_di" dmnElementRef="kompatibel"><dc:Bounds height="80" width="180" x="650" y="260" /></dmndi:DMNShape>
+      <dmndi:DMNShape id="anmalan_di" dmnElementRef="anmalan"><dc:Bounds height="80" width="180" x="800" y="80" /></dmndi:DMNShape>
+      <dmndi:DMNShape id="avbokning_di" dmnElementRef="avbokning"><dc:Bounds height="80" width="180" x="1000" y="80" /></dmndi:DMNShape>
+      <dmndi:DMNShape id="recension_di" dmnElementRef="recension"><dc:Bounds height="80" width="180" x="1250" y="80" /></dmndi:DMNShape>
+      <dmndi:DMNShape id="lagprofil_di" dmnElementRef="lagprofil"><dc:Bounds height="80" width="180" x="1500" y="80" /></dmndi:DMNShape>
+      <dmndi:DMNShape id="planErbjuds_di" dmnElementRef="planErbjuds"><dc:Bounds height="80" width="180" x="1250" y="400" /></dmndi:DMNShape>
+      <dmndi:DMNShape id="akut_di" dmnElementRef="akut"><dc:Bounds height="80" width="180" x="1500" y="400" /></dmndi:DMNShape>
+      <dmndi:DMNEdge id="IR_behorighet_in_teamMembership_di" dmnElementRef="IR_behorighet_in_teamMembership"><di:waypoint x="220" y="470" /><di:waypoint x="220" y="405" /><di:waypoint x="190" y="405" /><di:waypoint x="190" y="340" /></dmndi:DMNEdge>
+      <dmndi:DMNEdge id="IR_helgtid_in_requestedDate_di" dmnElementRef="IR_helgtid_in_requestedDate"><di:waypoint x="420" y="470" /><di:waypoint x="420" y="405" /><di:waypoint x="390" y="405" /><di:waypoint x="390" y="340" /></dmndi:DMNEdge>
+      <dmndi:DMNEdge id="IR_skapaMatch_behorighet_di" dmnElementRef="IR_skapaMatch_behorighet"><di:waypoint x="190" y="260" /><di:waypoint x="190" y="210" /><di:waypoint x="390" y="210" /><di:waypoint x="390" y="160" /></dmndi:DMNEdge>
+      <dmndi:DMNEdge id="IR_skapaMatch_helgtid_di" dmnElementRef="IR_skapaMatch_helgtid"><di:waypoint x="390" y="260" /><di:waypoint x="390" y="160" /></dmndi:DMNEdge>
+      <dmndi:DMNEdge id="IR_skapaMatch_in_origin_di" dmnElementRef="IR_skapaMatch_in_origin"><di:waypoint x="568" y="285" /><di:waypoint x="568" y="222" /><di:waypoint x="390" y="222" /><di:waypoint x="390" y="160" /></dmndi:DMNEdge>
+      <dmndi:DMNEdge id="IR_kompatibel_in_match_di" dmnElementRef="IR_kompatibel_in_match"><di:waypoint x="1070" y="470" /><di:waypoint x="1070" y="405" /><di:waypoint x="740" y="405" /><di:waypoint x="740" y="340" /></dmndi:DMNEdge>
+      <dmndi:DMNEdge id="IR_kompatibel_in_inquiringTeam_di" dmnElementRef="IR_kompatibel_in_inquiringTeam"><di:waypoint x="840" y="470" /><di:waypoint x="840" y="405" /><di:waypoint x="740" y="405" /><di:waypoint x="740" y="340" /></dmndi:DMNEdge>
+      <dmndi:DMNEdge id="IR_anmalan_kompatibel_di" dmnElementRef="IR_anmalan_kompatibel"><di:waypoint x="740" y="260" /><di:waypoint x="740" y="210" /><di:waypoint x="890" y="210" /><di:waypoint x="890" y="160" /></dmndi:DMNEdge>
+      <dmndi:DMNEdge id="IR_anmalan_in_match_di" dmnElementRef="IR_anmalan_in_match"><di:waypoint x="1070" y="470" /><di:waypoint x="1070" y="315" /><di:waypoint x="890" y="315" /><di:waypoint x="890" y="160" /></dmndi:DMNEdge>
+      <dmndi:DMNEdge id="IR_anmalan_in_inquiringTeam_di" dmnElementRef="IR_anmalan_in_inquiringTeam"><di:waypoint x="840" y="470" /><di:waypoint x="840" y="315" /><di:waypoint x="890" y="315" /><di:waypoint x="890" y="160" /></dmndi:DMNEdge>
+      <dmndi:DMNEdge id="IR_avbokning_in_match_di" dmnElementRef="IR_avbokning_in_match"><di:waypoint x="1070" y="470" /><di:waypoint x="1070" y="315" /><di:waypoint x="1090" y="315" /><di:waypoint x="1090" y="160" /></dmndi:DMNEdge>
+      <dmndi:DMNEdge id="IR_recension_in_reviews_di" dmnElementRef="IR_recension_in_reviews"><di:waypoint x="1370" y="285" /><di:waypoint x="1370" y="222" /><di:waypoint x="1340" y="222" /><di:waypoint x="1340" y="160" /></dmndi:DMNEdge>
+      <dmndi:DMNEdge id="IR_lagprofil_in_profile_di" dmnElementRef="IR_lagprofil_in_profile"><di:waypoint x="1620" y="285" /><di:waypoint x="1620" y="222" /><di:waypoint x="1590" y="222" /><di:waypoint x="1590" y="160" /></dmndi:DMNEdge>
+      <dmndi:DMNEdge id="IR_planErbjuds_in_pitch_di" dmnElementRef="IR_planErbjuds_in_pitch"><di:waypoint x="1370" y="605" /><di:waypoint x="1370" y="542" /><di:waypoint x="1340" y="542" /><di:waypoint x="1340" y="480" /></dmndi:DMNEdge>
+      <dmndi:DMNEdge id="IR_akut_in_event_di" dmnElementRef="IR_akut_in_event"><di:waypoint x="1620" y="605" /><di:waypoint x="1620" y="542" /><di:waypoint x="1590" y="542" /><di:waypoint x="1590" y="480" /></dmndi:DMNEdge>
+    </dmndi:DMNDiagram>
+  </dmndi:DMNDI>
+</definitions>
