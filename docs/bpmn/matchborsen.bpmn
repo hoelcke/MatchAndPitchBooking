@@ -1,0 +1,442 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" xmlns:modeler="http://camunda.org/schema/modeler/1.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_Matchborsen" targetNamespace="https://github.com/hoelcke/MatchAndPitchBooking" exporter="Camunda Modeler" exporterVersion="5.28.0" modeler:executionPlatform="Camunda Cloud" modeler:executionPlatformVersion="8.6.0">
+  <bpmn:collaboration id="Collaboration_Matchborsen">
+    <bpmn:documentation>Matchbörsen &amp; Planbokning, IFK Lidingö. Tre processer som kommunicerar via händelser i en intern outbox (kravspecifikation v1.1.1, avsnitt 4.0). Dokumentation, inte körbar: appen har en egen processmotor.</bpmn:documentation>
+    <bpmn:participant id="Participant_Match" name="Match (Process A)" processRef="Process_Match" />
+    <bpmn:participant id="Participant_Planbokning" name="Planbokning (Process B)" processRef="Process_Planbokning" />
+    <bpmn:participant id="Participant_FairPlay" name="Fair Play (Process C)" processRef="Process_FairPlay" />
+    <bpmn:messageFlow id="MessageFlow_1" sourceRef="A_Request" targetRef="B_Start" />
+    <bpmn:messageFlow id="MessageFlow_2" sourceRef="B_Reserved" targetRef="A_Reserved" />
+    <bpmn:messageFlow id="MessageFlow_3" sourceRef="B_Rejected" targetRef="A_Rejected" />
+    <bpmn:messageFlow id="MessageFlow_4" sourceRef="A_Accepted" targetRef="B_WaitAccept" />
+    <bpmn:messageFlow id="MessageFlow_5" sourceRef="B_Revoked" targetRef="A_MsgRevoked" />
+    <bpmn:messageFlow id="MessageFlow_6" sourceRef="Participant_Planbokning" targetRef="A_MsgOffice" />
+    <bpmn:messageFlow id="MessageFlow_7" sourceRef="Participant_Match" targetRef="B_MsgWithdrawn" />
+    <bpmn:messageFlow id="MessageFlow_8" sourceRef="A_Completed" targetRef="B_MatchCompleted" />
+    <bpmn:messageFlow id="MessageFlow_9" sourceRef="A_Completed" targetRef="C_Start" />
+    <bpmn:messageFlow id="MessageFlow_10" sourceRef="A_Expired" targetRef="B_MatchExpired" />
+  </bpmn:collaboration>
+  <bpmn:message id="Message_REQUEST_RESERVATION" name="REQUEST_RESERVATION" />
+  <bpmn:message id="Message_RESERVATION_RESERVED" name="RESERVATION_RESERVED" />
+  <bpmn:message id="Message_RESERVATION_REJECTED" name="RESERVATION_REJECTED" />
+  <bpmn:message id="Message_RESERVATION_ACCEPTED" name="RESERVATION_ACCEPTED" />
+  <bpmn:message id="Message_RESERVATION_WITHDRAWN" name="RESERVATION_WITHDRAWN" />
+  <bpmn:message id="Message_RESERVATION_REVOKED" name="RESERVATION_REVOKED" />
+  <bpmn:message id="Message_RESERVATION_CANCELLED_BY_OFFICE" name="RESERVATION_CANCELLED_BY_OFFICE" />
+  <bpmn:message id="Message_MATCH_COMPLETED" name="MATCH_COMPLETED" />
+  <bpmn:message id="Message_MATCH_EXPIRED" name="MATCH_EXPIRED" />
+  <bpmn:message id="Message_REVIEW_AGGREGATED" name="REVIEW_AGGREGATED" />
+  <bpmn:message id="Message_WITHDRAW_AS_OPPONENT" name="WITHDRAW_AS_OPPONENT" />
+  <bpmn:process id="Process_Match" name="Match (Process A)" isExecutable="false">
+    <bpmn:documentation>Matchgenomförande, avsnitt 3.1. Kod: src/server/modules/matches.ts. Status: MatchStatus.</bpmn:documentation>
+    <bpmn:laneSet id="LaneSet_Process_Match">
+      <bpmn:lane id="Lane_A_Home" name="Hemmalag (lagledare IFK Lidingö)">
+        <bpmn:flowNodeRef>A_Start</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>A_Fill</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>A_Select</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>A_EndNoOpponent</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>A_EndRevoked</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>A_EndOffice</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>A_Confirm</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>A_Remind</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>A_EndRemind</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>A_Expired</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>A_EndExpired</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>A_TimerStart</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>A_MsgRevoked</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>A_MsgOffice</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>A_TimerRemind</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>A_Timer48</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>A_MsgWithdraw</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_A_Away" name="Bortalag (lagledare)">
+        <bpmn:flowNodeRef>A_Inquire</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_A_System" name="System">
+        <bpmn:flowNodeRef>A_Auth</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>A_Track</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>A_Weekend</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>A_Request</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>A_WaitOffice</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>A_Reserved</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>A_Rejected</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>A_EndRejected</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>A_Merge</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>A_Publish</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>A_Market</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>A_Accepted</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>A_Republish</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>A_Completed</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>A_End</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+    <bpmn:startEvent id="A_Start" name="Ledaren vill skapa match"><bpmn:outgoing>Flow_Match_1</bpmn:outgoing></bpmn:startEvent>
+    <bpmn:userTask id="A_Fill" name="Fyll i matchuppgifter"><bpmn:documentation>A1, A2, AC-101.1, AC-101.3, BR-17. Datum, starttid och längd (60 min som standard), spelform, födelseår, kategori, nivå, domare, matchställ och telefon. Spår 2 väljer även plan.</bpmn:documentation><bpmn:incoming>Flow_Match_1</bpmn:incoming><bpmn:outgoing>Flow_Match_2</bpmn:outgoing></bpmn:userTask>
+    <bpmn:serviceTask id="A_Auth" name="Kontrollera behörighet"><bpmn:documentation>BR-07, BR-08, AC-101.5. Bara godkända ledare för IFK Lidingö-lag.</bpmn:documentation><bpmn:incoming>Flow_Match_2</bpmn:incoming><bpmn:outgoing>Flow_Match_3</bpmn:outgoing></bpmn:serviceTask>
+    <bpmn:exclusiveGateway id="A_Track" name="Spår?"><bpmn:documentation>FR-A-101. Spår 1 = ny helgtid via kansliet. Spår 2 = egen träningstid.</bpmn:documentation><bpmn:incoming>Flow_Match_3</bpmn:incoming><bpmn:outgoing>Flow_Match_4</bpmn:outgoing><bpmn:outgoing>Flow_Match_5</bpmn:outgoing></bpmn:exclusiveGateway>
+    <bpmn:serviceTask id="A_Weekend" name="Kontrollera helg och 21 dagar"><bpmn:documentation>BR-01, BR-06, AC-101.2, AC-101.4.</bpmn:documentation><bpmn:incoming>Flow_Match_5</bpmn:incoming><bpmn:outgoing>Flow_Match_6</bpmn:outgoing></bpmn:serviceTask>
+    <bpmn:intermediateThrowEvent id="A_Request" name="REQUEST_RESERVATION"><bpmn:documentation>A1, 4.1. Matchen får status RESERVATION_REQUESTED.</bpmn:documentation><bpmn:incoming>Flow_Match_6</bpmn:incoming><bpmn:outgoing>Flow_Match_7</bpmn:outgoing><bpmn:messageEventDefinition id="A_Request_Def" messageRef="Message_REQUEST_RESERVATION" /></bpmn:intermediateThrowEvent>
+    <bpmn:eventBasedGateway id="A_WaitOffice" name="Vänta på kansliet"><bpmn:incoming>Flow_Match_7</bpmn:incoming><bpmn:outgoing>Flow_Match_8</bpmn:outgoing><bpmn:outgoing>Flow_Match_9</bpmn:outgoing></bpmn:eventBasedGateway>
+    <bpmn:intermediateCatchEvent id="A_Reserved" name="RESERVATION_RESERVED"><bpmn:documentation>A3, AC-102.1. Plan och tid sätts på matchen.</bpmn:documentation><bpmn:incoming>Flow_Match_8</bpmn:incoming><bpmn:outgoing>Flow_Match_10</bpmn:outgoing><bpmn:messageEventDefinition id="A_Reserved_Def" messageRef="Message_RESERVATION_RESERVED" /></bpmn:intermediateCatchEvent>
+    <bpmn:intermediateCatchEvent id="A_Rejected" name="RESERVATION_REJECTED"><bpmn:documentation>A4. Hemmalaget får kansliets orsak (notis #5).</bpmn:documentation><bpmn:incoming>Flow_Match_9</bpmn:incoming><bpmn:outgoing>Flow_Match_11</bpmn:outgoing><bpmn:messageEventDefinition id="A_Rejected_Def" messageRef="Message_RESERVATION_REJECTED" /></bpmn:intermediateCatchEvent>
+    <bpmn:endEvent id="A_EndRejected" name="Avbokad (avslag)"><bpmn:documentation>Status CANCELLED.</bpmn:documentation><bpmn:incoming>Flow_Match_11</bpmn:incoming></bpmn:endEvent>
+    <bpmn:exclusiveGateway id="A_Merge"><bpmn:incoming>Flow_Match_4</bpmn:incoming><bpmn:incoming>Flow_Match_10</bpmn:incoming><bpmn:outgoing>Flow_Match_12</bpmn:outgoing></bpmn:exclusiveGateway>
+    <bpmn:serviceTask id="A_Publish" name="Publicera på börsen"><bpmn:documentation>A2, A3, AC-102.2. Status PUBLISHED. Gäster ser matchen utan kontaktuppgifter.</bpmn:documentation><bpmn:incoming>Flow_Match_12</bpmn:incoming><bpmn:outgoing>Flow_Match_13</bpmn:outgoing></bpmn:serviceTask>
+    <bpmn:exclusiveGateway id="A_Market"><bpmn:incoming>Flow_Match_13</bpmn:incoming><bpmn:incoming>Flow_Match_26</bpmn:incoming><bpmn:outgoing>Flow_Match_14</bpmn:outgoing></bpmn:exclusiveGateway>
+    <bpmn:userTask id="A_Inquire" name="Anmäl intresse"><bpmn:documentation>AC-103.1, BR-09. Flera lag kan anmäla sig. Hemmalaget får e-post (notis #6). Anmälan kan dras tillbaka före valet (AC-103.3).</bpmn:documentation><bpmn:incoming>Flow_Match_14</bpmn:incoming><bpmn:outgoing>Flow_Match_15</bpmn:outgoing></bpmn:userTask>
+    <bpmn:userTask id="A_Select" name="Välj motståndare"><bpmn:documentation>A6, BR-15, BR-16, AC-103.4. Status MATCH_CONFIRMED. Övriga anmälningar avvisas (notis #7, #8). I Spår 1 spärras valet efter 14-dagarsfristen (BR-03).</bpmn:documentation><bpmn:incoming>Flow_Match_15</bpmn:incoming><bpmn:outgoing>Flow_Match_19</bpmn:outgoing></bpmn:userTask>
+    <bpmn:endEvent id="A_EndNoOpponent" name="Utgången (ingen motståndare)"><bpmn:documentation>A12, AC-106.1. Status EXPIRED. Spår 1 med accepterad bokning: MATCH_EXPIRED (NO_OPPONENT_AT_START).</bpmn:documentation><bpmn:incoming>Flow_Match_16</bpmn:incoming></bpmn:endEvent>
+    <bpmn:endEvent id="A_EndRevoked" name="Inställd (14-dagarsfristen)"><bpmn:documentation>A10. Status CANCELLED. Notis #12.</bpmn:documentation><bpmn:incoming>Flow_Match_17</bpmn:incoming></bpmn:endEvent>
+    <bpmn:endEvent id="A_EndOffice" name="Inställd av kansliet"><bpmn:documentation>A11. Status CANCELLED. Akut notis #13 med kansliets orsak. Gäller även MATCH_CONFIRMED.</bpmn:documentation><bpmn:incoming>Flow_Match_18</bpmn:incoming></bpmn:endEvent>
+    <bpmn:intermediateThrowEvent id="A_Accepted" name="RESERVATION_ACCEPTED (Spår 1)"><bpmn:documentation>4.4, BR-04. Skickas bara i Spår 1, och igen vid ny motståndare efter återbud.</bpmn:documentation><bpmn:incoming>Flow_Match_19</bpmn:incoming><bpmn:outgoing>Flow_Match_20</bpmn:outgoing><bpmn:messageEventDefinition id="A_Accepted_Def" messageRef="Message_RESERVATION_ACCEPTED" /></bpmn:intermediateThrowEvent>
+    <bpmn:userTask id="A_Confirm" name="Bekräfta &quot;Match genomförd&quot;"><bpmn:documentation>A13, BR-14. Tillåtet från sluttid till 48 timmar efter sluttid.</bpmn:documentation><bpmn:incoming>Flow_Match_20</bpmn:incoming><bpmn:outgoing>Flow_Match_27</bpmn:outgoing></bpmn:userTask>
+    <bpmn:serviceTask id="A_Republish" name="Återpublicera med röd flagga"><bpmn:documentation>A7, AC-104.2, BR-04. Status PUBLISHED, isUrgent. Akut notis #9 till hemmalaget. Inget event till Planbokning.</bpmn:documentation><bpmn:incoming>Flow_Match_25</bpmn:incoming><bpmn:outgoing>Flow_Match_26</bpmn:outgoing></bpmn:serviceTask>
+    <bpmn:sendTask id="A_Remind" name="Påminn hemmalaget"><bpmn:documentation>AC-107.3, notis #15 och #16.</bpmn:documentation><bpmn:incoming>Flow_Match_21</bpmn:incoming><bpmn:outgoing>Flow_Match_22</bpmn:outgoing></bpmn:sendTask>
+    <bpmn:endEvent id="A_EndRemind" name="Påminnelse skickad"><bpmn:incoming>Flow_Match_22</bpmn:incoming></bpmn:endEvent>
+    <bpmn:intermediateThrowEvent id="A_Expired" name="MATCH_EXPIRED (Spår 1)"><bpmn:documentation>A14, 4.9. Bara i Spår 1. Reason NOT_CONFIRMED_WITHIN_48H.</bpmn:documentation><bpmn:incoming>Flow_Match_23</bpmn:incoming><bpmn:outgoing>Flow_Match_24</bpmn:outgoing><bpmn:messageEventDefinition id="A_Expired_Def" messageRef="Message_MATCH_EXPIRED" /></bpmn:intermediateThrowEvent>
+    <bpmn:endEvent id="A_EndExpired" name="Utgången (ej bekräftad)"><bpmn:documentation>A14, AC-107.2. Status EXPIRED. Inga recensioner. Notis #17.</bpmn:documentation><bpmn:incoming>Flow_Match_24</bpmn:incoming></bpmn:endEvent>
+    <bpmn:intermediateThrowEvent id="A_Completed" name="MATCH_COMPLETED"><bpmn:documentation>4.8. Till Fair Play, och till Planbokning i Spår 1.</bpmn:documentation><bpmn:incoming>Flow_Match_27</bpmn:incoming><bpmn:outgoing>Flow_Match_28</bpmn:outgoing><bpmn:messageEventDefinition id="A_Completed_Def" messageRef="Message_MATCH_COMPLETED" /></bpmn:intermediateThrowEvent>
+    <bpmn:endEvent id="A_End" name="Genomförd"><bpmn:documentation>Status COMPLETED.</bpmn:documentation><bpmn:incoming>Flow_Match_28</bpmn:incoming></bpmn:endEvent>
+    <bpmn:boundaryEvent id="A_TimerStart" name="Starttid" attachedToRef="A_Select"><bpmn:documentation>A12</bpmn:documentation><bpmn:outgoing>Flow_Match_16</bpmn:outgoing><bpmn:timerEventDefinition id="A_TimerStart_Def"><bpmn:timeDate xsi:type="bpmn:tFormalExpression">=match.startTime</bpmn:timeDate></bpmn:timerEventDefinition></bpmn:boundaryEvent>
+    <bpmn:boundaryEvent id="A_MsgRevoked" name="14-dagarsfrist" attachedToRef="A_Select"><bpmn:documentation>A10. RESERVATION_REVOKED från Planbokning.</bpmn:documentation><bpmn:outgoing>Flow_Match_17</bpmn:outgoing><bpmn:messageEventDefinition id="A_MsgRevoked_Def" messageRef="Message_RESERVATION_REVOKED" /></bpmn:boundaryEvent>
+    <bpmn:boundaryEvent id="A_MsgOffice" name="Inställd" attachedToRef="A_Select"><bpmn:documentation>A11. RESERVATION_CANCELLED_BY_OFFICE från Planbokning.</bpmn:documentation><bpmn:outgoing>Flow_Match_18</bpmn:outgoing><bpmn:messageEventDefinition id="A_MsgOffice_Def" messageRef="Message_RESERVATION_CANCELLED_BY_OFFICE" /></bpmn:boundaryEvent>
+    <bpmn:boundaryEvent id="A_TimerRemind" name="Påminnelse" attachedToRef="A_Confirm" cancelActivity="false"><bpmn:documentation>AC-107.3. Vid sluttid och 24 h efter sluttid.</bpmn:documentation><bpmn:outgoing>Flow_Match_21</bpmn:outgoing><bpmn:timerEventDefinition id="A_TimerRemind_Def"><bpmn:timeCycle xsi:type="bpmn:tFormalExpression">R2/=match.endTime/PT24H</bpmn:timeCycle></bpmn:timerEventDefinition></bpmn:boundaryEvent>
+    <bpmn:boundaryEvent id="A_Timer48" name="48 h" attachedToRef="A_Confirm"><bpmn:documentation>A14. 48 timmar efter sluttid.</bpmn:documentation><bpmn:outgoing>Flow_Match_23</bpmn:outgoing><bpmn:timerEventDefinition id="A_Timer48_Def"><bpmn:timeDate xsi:type="bpmn:tFormalExpression">=match.endTime + duration(&quot;PT48H&quot;)</bpmn:timeDate></bpmn:timerEventDefinition></bpmn:boundaryEvent>
+    <bpmn:boundaryEvent id="A_MsgWithdraw" name="Återbud" attachedToRef="A_Confirm"><bpmn:documentation>A7. Valt lag lämnar återbud före starttid.</bpmn:documentation><bpmn:outgoing>Flow_Match_25</bpmn:outgoing><bpmn:messageEventDefinition id="A_MsgWithdraw_Def" messageRef="Message_WITHDRAW_AS_OPPONENT" /></bpmn:boundaryEvent>
+    <bpmn:sequenceFlow id="Flow_Match_1" sourceRef="A_Start" targetRef="A_Fill" />
+    <bpmn:sequenceFlow id="Flow_Match_2" sourceRef="A_Fill" targetRef="A_Auth" />
+    <bpmn:sequenceFlow id="Flow_Match_3" sourceRef="A_Auth" targetRef="A_Track" />
+    <bpmn:sequenceFlow id="Flow_Match_4" name="Spår 2" sourceRef="A_Track" targetRef="A_Merge" />
+    <bpmn:sequenceFlow id="Flow_Match_5" name="Spår 1" sourceRef="A_Track" targetRef="A_Weekend" />
+    <bpmn:sequenceFlow id="Flow_Match_6" sourceRef="A_Weekend" targetRef="A_Request" />
+    <bpmn:sequenceFlow id="Flow_Match_7" sourceRef="A_Request" targetRef="A_WaitOffice" />
+    <bpmn:sequenceFlow id="Flow_Match_8" sourceRef="A_WaitOffice" targetRef="A_Reserved" />
+    <bpmn:sequenceFlow id="Flow_Match_9" sourceRef="A_WaitOffice" targetRef="A_Rejected" />
+    <bpmn:sequenceFlow id="Flow_Match_10" sourceRef="A_Reserved" targetRef="A_Merge" />
+    <bpmn:sequenceFlow id="Flow_Match_11" sourceRef="A_Rejected" targetRef="A_EndRejected" />
+    <bpmn:sequenceFlow id="Flow_Match_12" sourceRef="A_Merge" targetRef="A_Publish" />
+    <bpmn:sequenceFlow id="Flow_Match_13" sourceRef="A_Publish" targetRef="A_Market" />
+    <bpmn:sequenceFlow id="Flow_Match_14" sourceRef="A_Market" targetRef="A_Inquire" />
+    <bpmn:sequenceFlow id="Flow_Match_15" sourceRef="A_Inquire" targetRef="A_Select" />
+    <bpmn:sequenceFlow id="Flow_Match_16" sourceRef="A_TimerStart" targetRef="A_EndNoOpponent" />
+    <bpmn:sequenceFlow id="Flow_Match_17" sourceRef="A_MsgRevoked" targetRef="A_EndRevoked" />
+    <bpmn:sequenceFlow id="Flow_Match_18" sourceRef="A_MsgOffice" targetRef="A_EndOffice" />
+    <bpmn:sequenceFlow id="Flow_Match_19" sourceRef="A_Select" targetRef="A_Accepted" />
+    <bpmn:sequenceFlow id="Flow_Match_20" sourceRef="A_Accepted" targetRef="A_Confirm" />
+    <bpmn:sequenceFlow id="Flow_Match_21" sourceRef="A_TimerRemind" targetRef="A_Remind" />
+    <bpmn:sequenceFlow id="Flow_Match_22" sourceRef="A_Remind" targetRef="A_EndRemind" />
+    <bpmn:sequenceFlow id="Flow_Match_23" sourceRef="A_Timer48" targetRef="A_Expired" />
+    <bpmn:sequenceFlow id="Flow_Match_24" sourceRef="A_Expired" targetRef="A_EndExpired" />
+    <bpmn:sequenceFlow id="Flow_Match_25" sourceRef="A_MsgWithdraw" targetRef="A_Republish" />
+    <bpmn:sequenceFlow id="Flow_Match_26" sourceRef="A_Republish" targetRef="A_Market" />
+    <bpmn:sequenceFlow id="Flow_Match_27" sourceRef="A_Confirm" targetRef="A_Completed" />
+    <bpmn:sequenceFlow id="Flow_Match_28" sourceRef="A_Completed" targetRef="A_End" />
+    <bpmn:textAnnotation id="A_NoteCancel"><bpmn:text>Hemmalaget kan avboka före starttid (A5, A8, A9, BR-10). Status CANCELLED. I Spår 1 skickas RESERVATION_WITHDRAWN så att plantiden frigörs.</bpmn:text></bpmn:textAnnotation>
+  </bpmn:process>
+  <bpmn:process id="Process_Planbokning" name="Planbokning (Process B)" isExecutable="false">
+    <bpmn:documentation>Planbokning för Spår 1, avsnitt 3.2. Kod: src/server/modules/reservations.ts. Status: ReservationStatus.</bpmn:documentation>
+    <bpmn:laneSet id="LaneSet_Process_Planbokning">
+      <bpmn:lane id="Lane_B_Office" name="Kansli">
+        <bpmn:flowNodeRef>B_Review</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>B_EndWithdrawnEarly</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>B_Decide</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>B_Allocate</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>B_Reject</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>B_MsgWithdrawnEarly</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_B_System" name="System">
+        <bpmn:flowNodeRef>B_Start</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>B_Create</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>B_Notify</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>B_Reserved</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>B_Rejected</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>B_EndRejected</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>B_WaitAccept</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>B_Remind</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>B_EndRemind</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>B_Revoked</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>B_EndRevoked</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>B_EndWithdrawn</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>B_Lock</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>B_WaitOutcome</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>B_MatchCompleted</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>B_MatchExpired</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>B_WithdrawnLate</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>B_End</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>B_EndExpired</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>B_EndWithdrawnLate</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>B_TimerRemind</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>B_Timer14</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>B_MsgWithdrawn</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+    <bpmn:startEvent id="B_Start" name="REQUEST_RESERVATION"><bpmn:documentation>B1, 4.1.</bpmn:documentation><bpmn:outgoing>Flow_Planbokning_1</bpmn:outgoing><bpmn:messageEventDefinition id="B_Start_Def" messageRef="Message_REQUEST_RESERVATION" /></bpmn:startEvent>
+    <bpmn:serviceTask id="B_Create" name="Skapa reservation med frist"><bpmn:documentation>B1. Status REQUESTED. Fristen = matchdatum minus 14 dagar kl 23:59:59 Europe/Stockholm.</bpmn:documentation><bpmn:incoming>Flow_Planbokning_1</bpmn:incoming><bpmn:outgoing>Flow_Planbokning_2</bpmn:outgoing></bpmn:serviceTask>
+    <bpmn:sendTask id="B_Notify" name="Meddela kansliet"><bpmn:documentation>Notis #3.</bpmn:documentation><bpmn:incoming>Flow_Planbokning_2</bpmn:incoming><bpmn:outgoing>Flow_Planbokning_3</bpmn:outgoing></bpmn:sendTask>
+    <bpmn:userTask id="B_Review" name="Granska förfrågan"><bpmn:documentation>AC-201.1. Kön är sorterad på datum.</bpmn:documentation><bpmn:incoming>Flow_Planbokning_3</bpmn:incoming><bpmn:outgoing>Flow_Planbokning_5</bpmn:outgoing></bpmn:userTask>
+    <bpmn:endEvent id="B_EndWithdrawnEarly" name="Avbokad"><bpmn:documentation>B4, AC-201.3. Status WITHDRAWN_BY_HOME. Kan inte tilldelas.</bpmn:documentation><bpmn:incoming>Flow_Planbokning_4</bpmn:incoming></bpmn:endEvent>
+    <bpmn:exclusiveGateway id="B_Decide" name="Tilldela plan?"><bpmn:incoming>Flow_Planbokning_5</bpmn:incoming><bpmn:outgoing>Flow_Planbokning_6</bpmn:outgoing><bpmn:outgoing>Flow_Planbokning_7</bpmn:outgoing></bpmn:exclusiveGateway>
+    <bpmn:userTask id="B_Allocate" name="Tilldela plan"><bpmn:documentation>B2, AC-201.2. Bara aktiva planer som klarar spelformen. Starttid och längd förifyllda. Överlapp ger en varning som kan åsidosättas.</bpmn:documentation><bpmn:incoming>Flow_Planbokning_6</bpmn:incoming><bpmn:outgoing>Flow_Planbokning_8</bpmn:outgoing></bpmn:userTask>
+    <bpmn:userTask id="B_Reject" name="Avslå med orsak"><bpmn:documentation>B3, AC-204.1. Orsak krävs, högst 200 tecken.</bpmn:documentation><bpmn:incoming>Flow_Planbokning_7</bpmn:incoming><bpmn:outgoing>Flow_Planbokning_9</bpmn:outgoing></bpmn:userTask>
+    <bpmn:intermediateThrowEvent id="B_Reserved" name="RESERVATION_RESERVED"><bpmn:documentation>B2, 4.2. Status RESERVED.</bpmn:documentation><bpmn:incoming>Flow_Planbokning_8</bpmn:incoming><bpmn:outgoing>Flow_Planbokning_11</bpmn:outgoing><bpmn:messageEventDefinition id="B_Reserved_Def" messageRef="Message_RESERVATION_RESERVED" /></bpmn:intermediateThrowEvent>
+    <bpmn:intermediateThrowEvent id="B_Rejected" name="RESERVATION_REJECTED"><bpmn:documentation>B3, 4.3. Status REJECTED_BY_OFFICE.</bpmn:documentation><bpmn:incoming>Flow_Planbokning_9</bpmn:incoming><bpmn:outgoing>Flow_Planbokning_10</bpmn:outgoing><bpmn:messageEventDefinition id="B_Rejected_Def" messageRef="Message_RESERVATION_REJECTED" /></bpmn:intermediateThrowEvent>
+    <bpmn:endEvent id="B_EndRejected" name="Avslagen"><bpmn:incoming>Flow_Planbokning_10</bpmn:incoming></bpmn:endEvent>
+    <bpmn:receiveTask id="B_WaitAccept" name="Vänta på vald motståndare" messageRef="Message_RESERVATION_ACCEPTED"><bpmn:documentation>B5. Väntar på RESERVATION_ACCEPTED.</bpmn:documentation><bpmn:incoming>Flow_Planbokning_11</bpmn:incoming><bpmn:outgoing>Flow_Planbokning_17</bpmn:outgoing></bpmn:receiveTask>
+    <bpmn:sendTask id="B_Remind" name="Påminn hemmalaget"><bpmn:documentation>AC-202.1, notis #11. Bara om planen tilldelades före påminnelsetidpunkten.</bpmn:documentation><bpmn:incoming>Flow_Planbokning_12</bpmn:incoming><bpmn:outgoing>Flow_Planbokning_13</bpmn:outgoing></bpmn:sendTask>
+    <bpmn:endEvent id="B_EndRemind" name="Påminnelse skickad"><bpmn:incoming>Flow_Planbokning_13</bpmn:incoming></bpmn:endEvent>
+    <bpmn:intermediateThrowEvent id="B_Revoked" name="RESERVATION_REVOKED"><bpmn:documentation>B7, AC-202.2, 4.6. Status REVOKED_BY_DEADLINE. Plantiden frigörs.</bpmn:documentation><bpmn:incoming>Flow_Planbokning_14</bpmn:incoming><bpmn:outgoing>Flow_Planbokning_15</bpmn:outgoing><bpmn:messageEventDefinition id="B_Revoked_Def" messageRef="Message_RESERVATION_REVOKED" /></bpmn:intermediateThrowEvent>
+    <bpmn:endEvent id="B_EndRevoked" name="Återkallad"><bpmn:incoming>Flow_Planbokning_15</bpmn:incoming></bpmn:endEvent>
+    <bpmn:endEvent id="B_EndWithdrawn" name="Avbokad"><bpmn:documentation>B6. Status WITHDRAWN_BY_HOME. Plantiden frigörs.</bpmn:documentation><bpmn:incoming>Flow_Planbokning_16</bpmn:incoming></bpmn:endEvent>
+    <bpmn:serviceTask id="B_Lock" name="Lås bokningen"><bpmn:documentation>B5, AC-205.1. Status ACCEPTED. Motståndarens uppgifter sparas.</bpmn:documentation><bpmn:incoming>Flow_Planbokning_17</bpmn:incoming><bpmn:outgoing>Flow_Planbokning_18</bpmn:outgoing></bpmn:serviceTask>
+    <bpmn:eventBasedGateway id="B_WaitOutcome" name="Vänta på matchens utgång"><bpmn:incoming>Flow_Planbokning_18</bpmn:incoming><bpmn:outgoing>Flow_Planbokning_19</bpmn:outgoing><bpmn:outgoing>Flow_Planbokning_20</bpmn:outgoing><bpmn:outgoing>Flow_Planbokning_21</bpmn:outgoing></bpmn:eventBasedGateway>
+    <bpmn:intermediateCatchEvent id="B_MatchCompleted" name="MATCH_COMPLETED"><bpmn:documentation>B11, AC-203.1.</bpmn:documentation><bpmn:incoming>Flow_Planbokning_19</bpmn:incoming><bpmn:outgoing>Flow_Planbokning_22</bpmn:outgoing><bpmn:messageEventDefinition id="B_MatchCompleted_Def" messageRef="Message_MATCH_COMPLETED" /></bpmn:intermediateCatchEvent>
+    <bpmn:intermediateCatchEvent id="B_MatchExpired" name="MATCH_EXPIRED"><bpmn:documentation>B12, AC-203.3.</bpmn:documentation><bpmn:incoming>Flow_Planbokning_20</bpmn:incoming><bpmn:outgoing>Flow_Planbokning_23</bpmn:outgoing><bpmn:messageEventDefinition id="B_MatchExpired_Def" messageRef="Message_MATCH_EXPIRED" /></bpmn:intermediateCatchEvent>
+    <bpmn:intermediateCatchEvent id="B_WithdrawnLate" name="RESERVATION_WITHDRAWN"><bpmn:documentation>B9, AC-203.2.</bpmn:documentation><bpmn:incoming>Flow_Planbokning_21</bpmn:incoming><bpmn:outgoing>Flow_Planbokning_24</bpmn:outgoing><bpmn:messageEventDefinition id="B_WithdrawnLate_Def" messageRef="Message_RESERVATION_WITHDRAWN" /></bpmn:intermediateCatchEvent>
+    <bpmn:endEvent id="B_End" name="Genomförd"><bpmn:documentation>Status COMPLETED. Arkiveras.</bpmn:documentation><bpmn:incoming>Flow_Planbokning_22</bpmn:incoming></bpmn:endEvent>
+    <bpmn:endEvent id="B_EndExpired" name="Utgången"><bpmn:documentation>Status CLOSED_EXPIRED. Plantiden frigörs.</bpmn:documentation><bpmn:incoming>Flow_Planbokning_23</bpmn:incoming></bpmn:endEvent>
+    <bpmn:endEvent id="B_EndWithdrawnLate" name="Avbokad"><bpmn:documentation>Status WITHDRAWN_BY_HOME. Plantiden frigörs.</bpmn:documentation><bpmn:incoming>Flow_Planbokning_24</bpmn:incoming></bpmn:endEvent>
+    <bpmn:boundaryEvent id="B_MsgWithdrawnEarly" name="Avbokad" attachedToRef="B_Review"><bpmn:documentation>B4. RESERVATION_WITHDRAWN från Match.</bpmn:documentation><bpmn:outgoing>Flow_Planbokning_4</bpmn:outgoing><bpmn:messageEventDefinition id="B_MsgWithdrawnEarly_Def" messageRef="Message_RESERVATION_WITHDRAWN" /></bpmn:boundaryEvent>
+    <bpmn:boundaryEvent id="B_TimerRemind" name="18 dagar" attachedToRef="B_WaitAccept" cancelActivity="false"><bpmn:documentation>AC-202.1. 18 dagar före matchdatum.</bpmn:documentation><bpmn:outgoing>Flow_Planbokning_12</bpmn:outgoing><bpmn:timerEventDefinition id="B_TimerRemind_Def"><bpmn:timeDate xsi:type="bpmn:tFormalExpression">=reminderAt</bpmn:timeDate></bpmn:timerEventDefinition></bpmn:boundaryEvent>
+    <bpmn:boundaryEvent id="B_Timer14" name="14 dagar" attachedToRef="B_WaitAccept"><bpmn:documentation>B7, BR-03. Matchdatum minus 14 dagar kl 23:59:59.</bpmn:documentation><bpmn:outgoing>Flow_Planbokning_14</bpmn:outgoing><bpmn:timerEventDefinition id="B_Timer14_Def"><bpmn:timeDate xsi:type="bpmn:tFormalExpression">=reservation.deadlineAt</bpmn:timeDate></bpmn:timerEventDefinition></bpmn:boundaryEvent>
+    <bpmn:boundaryEvent id="B_MsgWithdrawn" name="Avbokad" attachedToRef="B_WaitAccept"><bpmn:documentation>B6. RESERVATION_WITHDRAWN från Match.</bpmn:documentation><bpmn:outgoing>Flow_Planbokning_16</bpmn:outgoing><bpmn:messageEventDefinition id="B_MsgWithdrawn_Def" messageRef="Message_RESERVATION_WITHDRAWN" /></bpmn:boundaryEvent>
+    <bpmn:sequenceFlow id="Flow_Planbokning_1" sourceRef="B_Start" targetRef="B_Create" />
+    <bpmn:sequenceFlow id="Flow_Planbokning_2" sourceRef="B_Create" targetRef="B_Notify" />
+    <bpmn:sequenceFlow id="Flow_Planbokning_3" sourceRef="B_Notify" targetRef="B_Review" />
+    <bpmn:sequenceFlow id="Flow_Planbokning_4" sourceRef="B_MsgWithdrawnEarly" targetRef="B_EndWithdrawnEarly" />
+    <bpmn:sequenceFlow id="Flow_Planbokning_5" sourceRef="B_Review" targetRef="B_Decide" />
+    <bpmn:sequenceFlow id="Flow_Planbokning_6" name="Ja" sourceRef="B_Decide" targetRef="B_Allocate" />
+    <bpmn:sequenceFlow id="Flow_Planbokning_7" name="Nej" sourceRef="B_Decide" targetRef="B_Reject" />
+    <bpmn:sequenceFlow id="Flow_Planbokning_8" sourceRef="B_Allocate" targetRef="B_Reserved" />
+    <bpmn:sequenceFlow id="Flow_Planbokning_9" sourceRef="B_Reject" targetRef="B_Rejected" />
+    <bpmn:sequenceFlow id="Flow_Planbokning_10" sourceRef="B_Rejected" targetRef="B_EndRejected" />
+    <bpmn:sequenceFlow id="Flow_Planbokning_11" sourceRef="B_Reserved" targetRef="B_WaitAccept" />
+    <bpmn:sequenceFlow id="Flow_Planbokning_12" sourceRef="B_TimerRemind" targetRef="B_Remind" />
+    <bpmn:sequenceFlow id="Flow_Planbokning_13" sourceRef="B_Remind" targetRef="B_EndRemind" />
+    <bpmn:sequenceFlow id="Flow_Planbokning_14" sourceRef="B_Timer14" targetRef="B_Revoked" />
+    <bpmn:sequenceFlow id="Flow_Planbokning_15" sourceRef="B_Revoked" targetRef="B_EndRevoked" />
+    <bpmn:sequenceFlow id="Flow_Planbokning_16" sourceRef="B_MsgWithdrawn" targetRef="B_EndWithdrawn" />
+    <bpmn:sequenceFlow id="Flow_Planbokning_17" sourceRef="B_WaitAccept" targetRef="B_Lock" />
+    <bpmn:sequenceFlow id="Flow_Planbokning_18" sourceRef="B_Lock" targetRef="B_WaitOutcome" />
+    <bpmn:sequenceFlow id="Flow_Planbokning_19" sourceRef="B_WaitOutcome" targetRef="B_MatchCompleted" />
+    <bpmn:sequenceFlow id="Flow_Planbokning_20" sourceRef="B_WaitOutcome" targetRef="B_MatchExpired" />
+    <bpmn:sequenceFlow id="Flow_Planbokning_21" sourceRef="B_WaitOutcome" targetRef="B_WithdrawnLate" />
+    <bpmn:sequenceFlow id="Flow_Planbokning_22" sourceRef="B_MatchCompleted" targetRef="B_End" />
+    <bpmn:sequenceFlow id="Flow_Planbokning_23" sourceRef="B_MatchExpired" targetRef="B_EndExpired" />
+    <bpmn:sequenceFlow id="Flow_Planbokning_24" sourceRef="B_WithdrawnLate" targetRef="B_EndWithdrawnLate" />
+    <bpmn:textAnnotation id="B_NoteCancel"><bpmn:text>Kansliet kan ställa in en RESERVED eller ACCEPTED bokning med orsak (B10, AC-206.1). Status CANCELLED_BY_OFFICE. RESERVATION_CANCELLED_BY_OFFICE går till Match.</bpmn:text></bpmn:textAnnotation>
+    <bpmn:textAnnotation id="B_NoteNewOpponent"><bpmn:text>Nytt RESERVATION_ACCEPTED efter återbud skriver över motståndaren utan statusändring (B8, BR-04).</bpmn:text></bpmn:textAnnotation>
+  </bpmn:process>
+  <bpmn:process id="Process_FairPlay" name="Fair Play (Process C)" isExecutable="false">
+    <bpmn:documentation>Fair Play-recension, avsnitt 3.3. Kod: src/server/modules/fairplay.ts. Status: ReviewStatus per recension.</bpmn:documentation>
+    <bpmn:laneSet id="LaneSet_Process_FairPlay">
+      <bpmn:lane id="Lane_C_Home" name="Hemmalag">
+        <bpmn:flowNodeRef>C_ReviewAway</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>C_TimerAway</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_C_Away" name="Bortalag">
+        <bpmn:flowNodeRef>C_ReviewHome</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>C_TimerHome</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_C_System" name="System">
+        <bpmn:flowNodeRef>C_Start</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>C_Create</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>C_Notify</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>C_Split</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>C_Join</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>C_Publish</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>C_Aggregated</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>C_End</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+    <bpmn:startEvent id="C_Start" name="MATCH_COMPLETED"><bpmn:documentation>C1, 4.8.</bpmn:documentation><bpmn:outgoing>Flow_FairPlay_1</bpmn:outgoing><bpmn:messageEventDefinition id="C_Start_Def" messageRef="Message_MATCH_COMPLETED" /></bpmn:startEvent>
+    <bpmn:serviceTask id="C_Create" name="Skapa två recensioner"><bpmn:documentation>C1. Status PENDING. Frist 7 kalenderdagar efter bekräftelsen.</bpmn:documentation><bpmn:incoming>Flow_FairPlay_1</bpmn:incoming><bpmn:outgoing>Flow_FairPlay_2</bpmn:outgoing></bpmn:serviceTask>
+    <bpmn:sendTask id="C_Notify" name="Meddela båda ledarna"><bpmn:documentation>Notis #18.</bpmn:documentation><bpmn:incoming>Flow_FairPlay_2</bpmn:incoming><bpmn:outgoing>Flow_FairPlay_3</bpmn:outgoing></bpmn:sendTask>
+    <bpmn:parallelGateway id="C_Split"><bpmn:incoming>Flow_FairPlay_3</bpmn:incoming><bpmn:outgoing>Flow_FairPlay_4</bpmn:outgoing><bpmn:outgoing>Flow_FairPlay_5</bpmn:outgoing></bpmn:parallelGateway>
+    <bpmn:userTask id="C_ReviewAway" name="Recensera bortalaget"><bpmn:documentation>C2, AC-301.3. Delbetyg 1–3 för spelare, ledare och publik samt bedömd nivå. Status SUBMITTED, dold (BR-05).</bpmn:documentation><bpmn:incoming>Flow_FairPlay_4</bpmn:incoming><bpmn:outgoing>Flow_FairPlay_6</bpmn:outgoing></bpmn:userTask>
+    <bpmn:userTask id="C_ReviewHome" name="Recensera hemmalaget"><bpmn:documentation>C2, AC-301.3. Status SUBMITTED, dold (BR-05).</bpmn:documentation><bpmn:incoming>Flow_FairPlay_5</bpmn:incoming><bpmn:outgoing>Flow_FairPlay_7</bpmn:outgoing></bpmn:userTask>
+    <bpmn:parallelGateway id="C_Join"><bpmn:incoming>Flow_FairPlay_6</bpmn:incoming><bpmn:incoming>Flow_FairPlay_7</bpmn:incoming><bpmn:incoming>Flow_FairPlay_8</bpmn:incoming><bpmn:incoming>Flow_FairPlay_9</bpmn:incoming><bpmn:outgoing>Flow_FairPlay_10</bpmn:outgoing></bpmn:parallelGateway>
+    <bpmn:serviceTask id="C_Publish" name="Publicera och räkna om lagprofiler"><bpmn:documentation>C3, C4, C5, BR-13, AC-303.1. Inlämnade blir PUBLISHED, övriga EXPIRED. Median av nivå och snitt av Fair Play över senaste 10, visas från 3.</bpmn:documentation><bpmn:incoming>Flow_FairPlay_10</bpmn:incoming><bpmn:outgoing>Flow_FairPlay_11</bpmn:outgoing></bpmn:serviceTask>
+    <bpmn:intermediateThrowEvent id="C_Aggregated" name="REVIEW_AGGREGATED"><bpmn:documentation>4.10.</bpmn:documentation><bpmn:incoming>Flow_FairPlay_11</bpmn:incoming><bpmn:outgoing>Flow_FairPlay_12</bpmn:outgoing><bpmn:messageEventDefinition id="C_Aggregated_Def" messageRef="Message_REVIEW_AGGREGATED" /></bpmn:intermediateThrowEvent>
+    <bpmn:endEvent id="C_End" name="Klar"><bpmn:incoming>Flow_FairPlay_12</bpmn:incoming></bpmn:endEvent>
+    <bpmn:boundaryEvent id="C_TimerAway" name="7 dagar" attachedToRef="C_ReviewAway"><bpmn:documentation>C4, C5</bpmn:documentation><bpmn:outgoing>Flow_FairPlay_8</bpmn:outgoing><bpmn:timerEventDefinition id="C_TimerAway_Def"><bpmn:timeDate xsi:type="bpmn:tFormalExpression">=reviewDeadlineAt</bpmn:timeDate></bpmn:timerEventDefinition></bpmn:boundaryEvent>
+    <bpmn:boundaryEvent id="C_TimerHome" name="7 dagar" attachedToRef="C_ReviewHome"><bpmn:documentation>C4, C5</bpmn:documentation><bpmn:outgoing>Flow_FairPlay_9</bpmn:outgoing><bpmn:timerEventDefinition id="C_TimerHome_Def"><bpmn:timeDate xsi:type="bpmn:tFormalExpression">=reviewDeadlineAt</bpmn:timeDate></bpmn:timerEventDefinition></bpmn:boundaryEvent>
+    <bpmn:sequenceFlow id="Flow_FairPlay_1" sourceRef="C_Start" targetRef="C_Create" />
+    <bpmn:sequenceFlow id="Flow_FairPlay_2" sourceRef="C_Create" targetRef="C_Notify" />
+    <bpmn:sequenceFlow id="Flow_FairPlay_3" sourceRef="C_Notify" targetRef="C_Split" />
+    <bpmn:sequenceFlow id="Flow_FairPlay_4" sourceRef="C_Split" targetRef="C_ReviewAway" />
+    <bpmn:sequenceFlow id="Flow_FairPlay_5" sourceRef="C_Split" targetRef="C_ReviewHome" />
+    <bpmn:sequenceFlow id="Flow_FairPlay_6" name="Inlämnad" sourceRef="C_ReviewAway" targetRef="C_Join" />
+    <bpmn:sequenceFlow id="Flow_FairPlay_7" name="Inlämnad" sourceRef="C_ReviewHome" targetRef="C_Join" />
+    <bpmn:sequenceFlow id="Flow_FairPlay_8" name="Utgår" sourceRef="C_TimerAway" targetRef="C_Join" />
+    <bpmn:sequenceFlow id="Flow_FairPlay_9" name="Utgår" sourceRef="C_TimerHome" targetRef="C_Join" />
+    <bpmn:sequenceFlow id="Flow_FairPlay_10" sourceRef="C_Join" targetRef="C_Publish" />
+    <bpmn:sequenceFlow id="Flow_FairPlay_11" sourceRef="C_Publish" targetRef="C_Aggregated" />
+    <bpmn:sequenceFlow id="Flow_FairPlay_12" sourceRef="C_Aggregated" targetRef="C_End" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="Diagram_Matchborsen">
+    <bpmndi:BPMNPlane id="Plane_Matchborsen" bpmnElement="Collaboration_Matchborsen">
+      <bpmndi:BPMNShape id="Participant_Match_di" bpmnElement="Participant_Match" isHorizontal="true"><dc:Bounds x="160" y="80" width="2745" height="890" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_A_Home_di" bpmnElement="Lane_A_Home" isHorizontal="true"><dc:Bounds x="190" y="80" width="2715" height="370" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_A_Away_di" bpmnElement="Lane_A_Away" isHorizontal="true"><dc:Bounds x="190" y="450" width="2715" height="150" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_A_System_di" bpmnElement="Lane_A_System" isHorizontal="true"><dc:Bounds x="190" y="600" width="2715" height="370" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Participant_Planbokning_di" bpmnElement="Participant_Planbokning" isHorizontal="true"><dc:Bounds x="160" y="1040" width="2745" height="740" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_B_Office_di" bpmnElement="Lane_B_Office" isHorizontal="true"><dc:Bounds x="190" y="1040" width="2715" height="260" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_B_System_di" bpmnElement="Lane_B_System" isHorizontal="true"><dc:Bounds x="190" y="1300" width="2715" height="480" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Participant_FairPlay_di" bpmnElement="Participant_FairPlay" isHorizontal="true"><dc:Bounds x="160" y="1850" width="2745" height="450" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_C_Home_di" bpmnElement="Lane_C_Home" isHorizontal="true"><dc:Bounds x="190" y="1850" width="2715" height="150" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_C_Away_di" bpmnElement="Lane_C_Away" isHorizontal="true"><dc:Bounds x="190" y="2000" width="2715" height="150" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_C_System_di" bpmnElement="Lane_C_System" isHorizontal="true"><dc:Bounds x="190" y="2150" width="2715" height="150" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="A_Start_di" bpmnElement="A_Start"><dc:Bounds x="302" y="137" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="270" y="177" width="100" height="40" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="A_Fill_di" bpmnElement="A_Fill"><dc:Bounds x="420" y="115" width="100" height="80" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="A_Auth_di" bpmnElement="A_Auth"><dc:Bounds x="570" y="635" width="100" height="80" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="A_Track_di" bpmnElement="A_Track" isMarkerVisible="true"><dc:Bounds x="745" y="650" width="50" height="50" /><bpmndi:BPMNLabel><dc:Bounds x="720" y="704" width="100" height="40" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="A_Weekend_di" bpmnElement="A_Weekend"><dc:Bounds x="870" y="745" width="100" height="80" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="A_Request_di" bpmnElement="A_Request"><dc:Bounds x="1052" y="767" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="1020" y="807" width="100" height="40" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="A_WaitOffice_di" bpmnElement="A_WaitOffice"><dc:Bounds x="1195" y="760" width="50" height="50" /><bpmndi:BPMNLabel><dc:Bounds x="1170" y="814" width="100" height="40" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="A_Reserved_di" bpmnElement="A_Reserved"><dc:Bounds x="1352" y="767" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="1320" y="807" width="100" height="40" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="A_Rejected_di" bpmnElement="A_Rejected"><dc:Bounds x="1352" y="877" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="1320" y="917" width="100" height="40" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="A_EndRejected_di" bpmnElement="A_EndRejected"><dc:Bounds x="1502" y="877" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="1470" y="917" width="100" height="40" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="A_Merge_di" bpmnElement="A_Merge" isMarkerVisible="true"><dc:Bounds x="1495" y="650" width="50" height="50" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="A_Publish_di" bpmnElement="A_Publish"><dc:Bounds x="1620" y="635" width="100" height="80" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="A_Market_di" bpmnElement="A_Market" isMarkerVisible="true"><dc:Bounds x="1795" y="650" width="50" height="50" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="A_Inquire_di" bpmnElement="A_Inquire"><dc:Bounds x="1890" y="485" width="100" height="80" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="A_Select_di" bpmnElement="A_Select"><dc:Bounds x="2005" y="115" width="170" height="80" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="A_EndNoOpponent_di" bpmnElement="A_EndNoOpponent"><dc:Bounds x="1997" y="247" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="1965" y="287" width="100" height="40" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="A_EndRevoked_di" bpmnElement="A_EndRevoked"><dc:Bounds x="2147" y="357" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="2115" y="397" width="100" height="40" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="A_EndOffice_di" bpmnElement="A_EndOffice"><dc:Bounds x="2297" y="247" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="2265" y="287" width="100" height="40" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="A_Accepted_di" bpmnElement="A_Accepted"><dc:Bounds x="2222" y="657" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="2190" y="697" width="100" height="40" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="A_Confirm_di" bpmnElement="A_Confirm"><dc:Bounds x="2380" y="115" width="170" height="80" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="A_Republish_di" bpmnElement="A_Republish"><dc:Bounds x="2340" y="745" width="100" height="80" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="A_Remind_di" bpmnElement="A_Remind"><dc:Bounds x="2565" y="225" width="100" height="80" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="A_EndRemind_di" bpmnElement="A_EndRemind"><dc:Bounds x="2747" y="247" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="2715" y="287" width="100" height="40" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="A_Expired_di" bpmnElement="A_Expired"><dc:Bounds x="2597" y="357" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="2565" y="397" width="100" height="40" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="A_EndExpired_di" bpmnElement="A_EndExpired"><dc:Bounds x="2747" y="357" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="2715" y="397" width="100" height="40" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="A_Completed_di" bpmnElement="A_Completed"><dc:Bounds x="2597" y="657" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="2565" y="697" width="100" height="40" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="A_End_di" bpmnElement="A_End"><dc:Bounds x="2747" y="657" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="2715" y="697" width="100" height="40" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="A_TimerStart_di" bpmnElement="A_TimerStart"><dc:Bounds x="2009" y="177" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="2033" y="207" width="58" height="40" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="A_MsgRevoked_di" bpmnElement="A_MsgRevoked"><dc:Bounds x="2072" y="177" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="2096" y="207" width="58" height="40" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="A_MsgOffice_di" bpmnElement="A_MsgOffice"><dc:Bounds x="2135" y="177" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="2159" y="207" width="58" height="40" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="A_TimerRemind_di" bpmnElement="A_TimerRemind"><dc:Bounds x="2384" y="177" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="2408" y="207" width="58" height="40" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="A_Timer48_di" bpmnElement="A_Timer48"><dc:Bounds x="2447" y="177" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="2471" y="207" width="58" height="40" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="A_MsgWithdraw_di" bpmnElement="A_MsgWithdraw"><dc:Bounds x="2510" y="177" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="2534" y="207" width="58" height="40" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="A_NoteCancel_di" bpmnElement="A_NoteCancel"><dc:Bounds x="870" y="225" width="320" height="70" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_Match_1_di" bpmnElement="Flow_Match_1"><di:waypoint x="338" y="155" /><di:waypoint x="420" y="155" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Match_2_di" bpmnElement="Flow_Match_2"><di:waypoint x="520" y="155" /><di:waypoint x="545" y="155" /><di:waypoint x="545" y="675" /><di:waypoint x="570" y="675" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Match_3_di" bpmnElement="Flow_Match_3"><di:waypoint x="670" y="675" /><di:waypoint x="745" y="675" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Match_4_di" bpmnElement="Flow_Match_4"><di:waypoint x="795" y="675" /><di:waypoint x="1495" y="675" /><bpmndi:BPMNLabel><dc:Bounds x="801" y="655" width="60" height="14" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Match_5_di" bpmnElement="Flow_Match_5"><di:waypoint x="770" y="700" /><di:waypoint x="770" y="785" /><di:waypoint x="870" y="785" /><bpmndi:BPMNLabel><dc:Bounds x="776" y="732" width="60" height="14" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Match_6_di" bpmnElement="Flow_Match_6"><di:waypoint x="970" y="785" /><di:waypoint x="1052" y="785" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Match_7_di" bpmnElement="Flow_Match_7"><di:waypoint x="1088" y="785" /><di:waypoint x="1195" y="785" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Match_8_di" bpmnElement="Flow_Match_8"><di:waypoint x="1245" y="785" /><di:waypoint x="1352" y="785" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Match_9_di" bpmnElement="Flow_Match_9"><di:waypoint x="1220" y="810" /><di:waypoint x="1220" y="895" /><di:waypoint x="1352" y="895" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Match_10_di" bpmnElement="Flow_Match_10"><di:waypoint x="1388" y="785" /><di:waypoint x="1520" y="785" /><di:waypoint x="1520" y="700" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Match_11_di" bpmnElement="Flow_Match_11"><di:waypoint x="1388" y="895" /><di:waypoint x="1502" y="895" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Match_12_di" bpmnElement="Flow_Match_12"><di:waypoint x="1545" y="675" /><di:waypoint x="1620" y="675" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Match_13_di" bpmnElement="Flow_Match_13"><di:waypoint x="1720" y="675" /><di:waypoint x="1795" y="675" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Match_14_di" bpmnElement="Flow_Match_14"><di:waypoint x="1820" y="650" /><di:waypoint x="1820" y="525" /><di:waypoint x="1890" y="525" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Match_15_di" bpmnElement="Flow_Match_15"><di:waypoint x="1990" y="525" /><di:waypoint x="1998" y="525" /><di:waypoint x="1998" y="155" /><di:waypoint x="2005" y="155" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Match_16_di" bpmnElement="Flow_Match_16"><di:waypoint x="2027" y="213" /><di:waypoint x="2027" y="233" /><di:waypoint x="2015" y="233" /><di:waypoint x="2015" y="247" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Match_17_di" bpmnElement="Flow_Match_17"><di:waypoint x="2090" y="213" /><di:waypoint x="2090" y="375" /><di:waypoint x="2147" y="375" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Match_18_di" bpmnElement="Flow_Match_18"><di:waypoint x="2153" y="213" /><di:waypoint x="2153" y="265" /><di:waypoint x="2297" y="265" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Match_19_di" bpmnElement="Flow_Match_19"><di:waypoint x="2175" y="155" /><di:waypoint x="2198" y="155" /><di:waypoint x="2198" y="675" /><di:waypoint x="2222" y="675" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Match_20_di" bpmnElement="Flow_Match_20"><di:waypoint x="2258" y="675" /><di:waypoint x="2319" y="675" /><di:waypoint x="2319" y="155" /><di:waypoint x="2380" y="155" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Match_21_di" bpmnElement="Flow_Match_21"><di:waypoint x="2402" y="213" /><di:waypoint x="2402" y="265" /><di:waypoint x="2565" y="265" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Match_22_di" bpmnElement="Flow_Match_22"><di:waypoint x="2665" y="265" /><di:waypoint x="2747" y="265" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Match_23_di" bpmnElement="Flow_Match_23"><di:waypoint x="2465" y="213" /><di:waypoint x="2465" y="375" /><di:waypoint x="2597" y="375" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Match_24_di" bpmnElement="Flow_Match_24"><di:waypoint x="2633" y="375" /><di:waypoint x="2747" y="375" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Match_25_di" bpmnElement="Flow_Match_25"><di:waypoint x="2528" y="213" /><di:waypoint x="2528" y="233" /><di:waypoint x="2390" y="233" /><di:waypoint x="2390" y="745" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Match_26_di" bpmnElement="Flow_Match_26"><di:waypoint x="2340" y="785" /><di:waypoint x="1820" y="785" /><di:waypoint x="1820" y="700" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Match_27_di" bpmnElement="Flow_Match_27"><di:waypoint x="2550" y="155" /><di:waypoint x="2574" y="155" /><di:waypoint x="2574" y="675" /><di:waypoint x="2597" y="675" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Match_28_di" bpmnElement="Flow_Match_28"><di:waypoint x="2633" y="675" /><di:waypoint x="2747" y="675" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="B_Start_di" bpmnElement="B_Start"><dc:Bounds x="302" y="1357" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="270" y="1397" width="100" height="40" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="B_Create_di" bpmnElement="B_Create"><dc:Bounds x="420" y="1335" width="100" height="80" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="B_Notify_di" bpmnElement="B_Notify"><dc:Bounds x="570" y="1335" width="100" height="80" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="B_Review_di" bpmnElement="B_Review"><dc:Bounds x="720" y="1075" width="100" height="80" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="B_EndWithdrawnEarly_di" bpmnElement="B_EndWithdrawnEarly"><dc:Bounds x="842" y="1207" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="810" y="1247" width="100" height="40" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="B_Decide_di" bpmnElement="B_Decide" isMarkerVisible="true"><dc:Bounds x="955" y="1090" width="50" height="50" /><bpmndi:BPMNLabel><dc:Bounds x="930" y="1144" width="100" height="40" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="B_Allocate_di" bpmnElement="B_Allocate"><dc:Bounds x="1080" y="1075" width="100" height="80" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="B_Reject_di" bpmnElement="B_Reject"><dc:Bounds x="1080" y="1185" width="100" height="80" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="B_Reserved_di" bpmnElement="B_Reserved"><dc:Bounds x="1262" y="1357" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="1230" y="1397" width="100" height="40" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="B_Rejected_di" bpmnElement="B_Rejected"><dc:Bounds x="1262" y="1467" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="1230" y="1507" width="100" height="40" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="B_EndRejected_di" bpmnElement="B_EndRejected"><dc:Bounds x="1412" y="1467" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="1380" y="1507" width="100" height="40" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="B_WaitAccept_di" bpmnElement="B_WaitAccept"><dc:Bounds x="1375" y="1335" width="170" height="80" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="B_Remind_di" bpmnElement="B_Remind"><dc:Bounds x="1530" y="1555" width="100" height="80" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="B_EndRemind_di" bpmnElement="B_EndRemind"><dc:Bounds x="1712" y="1577" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="1680" y="1617" width="100" height="40" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="B_Revoked_di" bpmnElement="B_Revoked"><dc:Bounds x="1562" y="1687" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="1530" y="1727" width="100" height="40" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="B_EndRevoked_di" bpmnElement="B_EndRevoked"><dc:Bounds x="1712" y="1687" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="1680" y="1727" width="100" height="40" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="B_EndWithdrawn_di" bpmnElement="B_EndWithdrawn"><dc:Bounds x="1592" y="1467" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="1560" y="1507" width="100" height="40" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="B_Lock_di" bpmnElement="B_Lock"><dc:Bounds x="1710" y="1335" width="100" height="80" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="B_WaitOutcome_di" bpmnElement="B_WaitOutcome"><dc:Bounds x="1885" y="1350" width="50" height="50" /><bpmndi:BPMNLabel><dc:Bounds x="1860" y="1404" width="100" height="40" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="B_MatchCompleted_di" bpmnElement="B_MatchCompleted"><dc:Bounds x="2042" y="1357" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="2010" y="1397" width="100" height="40" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="B_MatchExpired_di" bpmnElement="B_MatchExpired"><dc:Bounds x="2042" y="1467" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="2010" y="1507" width="100" height="40" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="B_WithdrawnLate_di" bpmnElement="B_WithdrawnLate"><dc:Bounds x="2042" y="1577" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="2010" y="1617" width="100" height="40" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="B_End_di" bpmnElement="B_End"><dc:Bounds x="2192" y="1357" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="2160" y="1397" width="100" height="40" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="B_EndExpired_di" bpmnElement="B_EndExpired"><dc:Bounds x="2192" y="1467" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="2160" y="1507" width="100" height="40" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="B_EndWithdrawnLate_di" bpmnElement="B_EndWithdrawnLate"><dc:Bounds x="2192" y="1577" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="2160" y="1617" width="100" height="40" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="B_MsgWithdrawnEarly_di" bpmnElement="B_MsgWithdrawnEarly"><dc:Bounds x="752" y="1137" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="776" y="1167" width="58" height="40" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="B_TimerRemind_di" bpmnElement="B_TimerRemind"><dc:Bounds x="1379" y="1397" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="1403" y="1427" width="58" height="40" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="B_Timer14_di" bpmnElement="B_Timer14"><dc:Bounds x="1442" y="1397" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="1466" y="1427" width="58" height="40" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="B_MsgWithdrawn_di" bpmnElement="B_MsgWithdrawn"><dc:Bounds x="1505" y="1397" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="1529" y="1427" width="58" height="40" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="B_NoteCancel_di" bpmnElement="B_NoteCancel"><dc:Bounds x="1410" y="1075" width="330" height="70" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="B_NoteNewOpponent_di" bpmnElement="B_NoteNewOpponent"><dc:Bounds x="1860" y="1075" width="300" height="70" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_Planbokning_1_di" bpmnElement="Flow_Planbokning_1"><di:waypoint x="338" y="1375" /><di:waypoint x="420" y="1375" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Planbokning_2_di" bpmnElement="Flow_Planbokning_2"><di:waypoint x="520" y="1375" /><di:waypoint x="570" y="1375" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Planbokning_3_di" bpmnElement="Flow_Planbokning_3"><di:waypoint x="670" y="1375" /><di:waypoint x="695" y="1375" /><di:waypoint x="695" y="1115" /><di:waypoint x="720" y="1115" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Planbokning_4_di" bpmnElement="Flow_Planbokning_4"><di:waypoint x="770" y="1173" /><di:waypoint x="770" y="1225" /><di:waypoint x="842" y="1225" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Planbokning_5_di" bpmnElement="Flow_Planbokning_5"><di:waypoint x="820" y="1115" /><di:waypoint x="955" y="1115" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Planbokning_6_di" bpmnElement="Flow_Planbokning_6"><di:waypoint x="1005" y="1115" /><di:waypoint x="1080" y="1115" /><bpmndi:BPMNLabel><dc:Bounds x="1011" y="1095" width="60" height="14" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Planbokning_7_di" bpmnElement="Flow_Planbokning_7"><di:waypoint x="980" y="1140" /><di:waypoint x="980" y="1225" /><di:waypoint x="1080" y="1225" /><bpmndi:BPMNLabel><dc:Bounds x="986" y="1172" width="60" height="14" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Planbokning_8_di" bpmnElement="Flow_Planbokning_8"><di:waypoint x="1180" y="1115" /><di:waypoint x="1221" y="1115" /><di:waypoint x="1221" y="1375" /><di:waypoint x="1262" y="1375" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Planbokning_9_di" bpmnElement="Flow_Planbokning_9"><di:waypoint x="1180" y="1225" /><di:waypoint x="1221" y="1225" /><di:waypoint x="1221" y="1485" /><di:waypoint x="1262" y="1485" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Planbokning_10_di" bpmnElement="Flow_Planbokning_10"><di:waypoint x="1298" y="1485" /><di:waypoint x="1412" y="1485" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Planbokning_11_di" bpmnElement="Flow_Planbokning_11"><di:waypoint x="1298" y="1375" /><di:waypoint x="1375" y="1375" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Planbokning_12_di" bpmnElement="Flow_Planbokning_12"><di:waypoint x="1397" y="1433" /><di:waypoint x="1397" y="1595" /><di:waypoint x="1530" y="1595" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Planbokning_13_di" bpmnElement="Flow_Planbokning_13"><di:waypoint x="1630" y="1595" /><di:waypoint x="1712" y="1595" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Planbokning_14_di" bpmnElement="Flow_Planbokning_14"><di:waypoint x="1460" y="1433" /><di:waypoint x="1460" y="1705" /><di:waypoint x="1562" y="1705" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Planbokning_15_di" bpmnElement="Flow_Planbokning_15"><di:waypoint x="1598" y="1705" /><di:waypoint x="1712" y="1705" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Planbokning_16_di" bpmnElement="Flow_Planbokning_16"><di:waypoint x="1523" y="1433" /><di:waypoint x="1523" y="1485" /><di:waypoint x="1592" y="1485" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Planbokning_17_di" bpmnElement="Flow_Planbokning_17"><di:waypoint x="1545" y="1375" /><di:waypoint x="1710" y="1375" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Planbokning_18_di" bpmnElement="Flow_Planbokning_18"><di:waypoint x="1810" y="1375" /><di:waypoint x="1885" y="1375" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Planbokning_19_di" bpmnElement="Flow_Planbokning_19"><di:waypoint x="1935" y="1375" /><di:waypoint x="2042" y="1375" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Planbokning_20_di" bpmnElement="Flow_Planbokning_20"><di:waypoint x="1910" y="1400" /><di:waypoint x="1910" y="1485" /><di:waypoint x="2042" y="1485" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Planbokning_21_di" bpmnElement="Flow_Planbokning_21"><di:waypoint x="1910" y="1400" /><di:waypoint x="1910" y="1595" /><di:waypoint x="2042" y="1595" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Planbokning_22_di" bpmnElement="Flow_Planbokning_22"><di:waypoint x="2078" y="1375" /><di:waypoint x="2192" y="1375" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Planbokning_23_di" bpmnElement="Flow_Planbokning_23"><di:waypoint x="2078" y="1485" /><di:waypoint x="2192" y="1485" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Planbokning_24_di" bpmnElement="Flow_Planbokning_24"><di:waypoint x="2078" y="1595" /><di:waypoint x="2192" y="1595" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="C_Start_di" bpmnElement="C_Start"><dc:Bounds x="302" y="2207" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="270" y="2247" width="100" height="40" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="C_Create_di" bpmnElement="C_Create"><dc:Bounds x="420" y="2185" width="100" height="80" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="C_Notify_di" bpmnElement="C_Notify"><dc:Bounds x="570" y="2185" width="100" height="80" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="C_Split_di" bpmnElement="C_Split"><dc:Bounds x="745" y="2200" width="50" height="50" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="C_ReviewAway_di" bpmnElement="C_ReviewAway"><dc:Bounds x="870" y="1885" width="100" height="80" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="C_ReviewHome_di" bpmnElement="C_ReviewHome"><dc:Bounds x="870" y="2035" width="100" height="80" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="C_Join_di" bpmnElement="C_Join"><dc:Bounds x="1195" y="2200" width="50" height="50" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="C_Publish_di" bpmnElement="C_Publish"><dc:Bounds x="1320" y="2185" width="100" height="80" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="C_Aggregated_di" bpmnElement="C_Aggregated"><dc:Bounds x="1502" y="2207" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="1470" y="2247" width="100" height="40" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="C_End_di" bpmnElement="C_End"><dc:Bounds x="1652" y="2207" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="1620" y="2247" width="100" height="40" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="C_TimerAway_di" bpmnElement="C_TimerAway"><dc:Bounds x="902" y="1947" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="926" y="1977" width="58" height="40" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="C_TimerHome_di" bpmnElement="C_TimerHome"><dc:Bounds x="902" y="2097" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="926" y="2127" width="58" height="40" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_FairPlay_1_di" bpmnElement="Flow_FairPlay_1"><di:waypoint x="338" y="2225" /><di:waypoint x="420" y="2225" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_FairPlay_2_di" bpmnElement="Flow_FairPlay_2"><di:waypoint x="520" y="2225" /><di:waypoint x="570" y="2225" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_FairPlay_3_di" bpmnElement="Flow_FairPlay_3"><di:waypoint x="670" y="2225" /><di:waypoint x="745" y="2225" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_FairPlay_4_di" bpmnElement="Flow_FairPlay_4"><di:waypoint x="770" y="2200" /><di:waypoint x="770" y="1925" /><di:waypoint x="870" y="1925" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_FairPlay_5_di" bpmnElement="Flow_FairPlay_5"><di:waypoint x="770" y="2200" /><di:waypoint x="770" y="2075" /><di:waypoint x="870" y="2075" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_FairPlay_6_di" bpmnElement="Flow_FairPlay_6"><di:waypoint x="970" y="1925" /><di:waypoint x="1220" y="1925" /><di:waypoint x="1220" y="2200" /><bpmndi:BPMNLabel><dc:Bounds x="976" y="1905" width="60" height="14" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_FairPlay_7_di" bpmnElement="Flow_FairPlay_7"><di:waypoint x="970" y="2075" /><di:waypoint x="1220" y="2075" /><di:waypoint x="1220" y="2200" /><bpmndi:BPMNLabel><dc:Bounds x="976" y="2055" width="60" height="14" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_FairPlay_8_di" bpmnElement="Flow_FairPlay_8"><di:waypoint x="920" y="1983" /><di:waypoint x="920" y="2225" /><di:waypoint x="1195" y="2225" /><bpmndi:BPMNLabel><dc:Bounds x="926" y="2094" width="60" height="14" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_FairPlay_9_di" bpmnElement="Flow_FairPlay_9"><di:waypoint x="920" y="2133" /><di:waypoint x="920" y="2225" /><di:waypoint x="1195" y="2225" /><bpmndi:BPMNLabel><dc:Bounds x="926" y="2169" width="60" height="14" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_FairPlay_10_di" bpmnElement="Flow_FairPlay_10"><di:waypoint x="1245" y="2225" /><di:waypoint x="1320" y="2225" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_FairPlay_11_di" bpmnElement="Flow_FairPlay_11"><di:waypoint x="1420" y="2225" /><di:waypoint x="1502" y="2225" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_FairPlay_12_di" bpmnElement="Flow_FairPlay_12"><di:waypoint x="1538" y="2225" /><di:waypoint x="1652" y="2225" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="MessageFlow_1_di" bpmnElement="MessageFlow_1"><di:waypoint x="1070" y="803" /><di:waypoint x="1070" y="815" /><di:waypoint x="320" y="815" /><di:waypoint x="320" y="1357" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="MessageFlow_2_di" bpmnElement="MessageFlow_2"><di:waypoint x="1280" y="1357" /><di:waypoint x="1280" y="1340" /><di:waypoint x="1370" y="1340" /><di:waypoint x="1370" y="803" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="MessageFlow_3_di" bpmnElement="MessageFlow_3"><di:waypoint x="1280" y="1467" /><di:waypoint x="1280" y="1445" /><di:waypoint x="1370" y="1445" /><di:waypoint x="1370" y="913" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="MessageFlow_4_di" bpmnElement="MessageFlow_4"><di:waypoint x="2240" y="693" /><di:waypoint x="2240" y="720" /><di:waypoint x="1460" y="720" /><di:waypoint x="1460" y="1335" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="MessageFlow_5_di" bpmnElement="MessageFlow_5"><di:waypoint x="1580" y="1687" /><di:waypoint x="1580" y="1655" /><di:waypoint x="2090" y="1655" /><di:waypoint x="2090" y="213" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="MessageFlow_6_di" bpmnElement="MessageFlow_6"><di:waypoint x="2165" y="1040" /><di:waypoint x="2165" y="213" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="MessageFlow_7_di" bpmnElement="MessageFlow_7"><di:waypoint x="1523" y="970" /><di:waypoint x="1523" y="1397" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="MessageFlow_8_di" bpmnElement="MessageFlow_8"><di:waypoint x="2615" y="693" /><di:waypoint x="2615" y="740" /><di:waypoint x="2060" y="740" /><di:waypoint x="2060" y="1357" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="MessageFlow_9_di" bpmnElement="MessageFlow_9"><di:waypoint x="2615" y="693" /><di:waypoint x="2615" y="745" /><di:waypoint x="320" y="745" /><di:waypoint x="320" y="2207" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="MessageFlow_10_di" bpmnElement="MessageFlow_10"><di:waypoint x="2615" y="393" /><di:waypoint x="2615" y="450" /><di:waypoint x="2060" y="450" /><di:waypoint x="2060" y="1467" /></bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>
