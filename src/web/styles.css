@@ -180,3 +180,9 @@ th { font-size: 0.8rem; color: var(--muted); }
 .dev { border-style: dashed; }
 .mail li { border-bottom: 1px solid var(--border); padding: 0.4rem 0; }
 .mail summary { cursor: pointer; }
+
+.time-input { display: inline-flex; align-items: center; gap: 0.3rem; }
+.time-input select { width: auto; min-width: 4.5rem; }
+.date-input { display: inline-flex; flex-wrap: nowrap; align-items: center; gap: 0.3rem; }
+.date-input select { width: auto; }
+.filter-grid .inline-field { grid-column: 1 / -1; }

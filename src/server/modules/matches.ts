@@ -21,6 +21,7 @@ import { isCompatible } from '../../shared/rules.js';
 import {
   addHours,
   addLocalDays,
+  addMinutes,
   daysBetweenDates,
   formatDateTime,
   formatSlot,
@@ -238,6 +239,19 @@ interface MatchFields {
   kitColorHome: string;
 }
 
+/**
+ * Matchen anges med lokalt datum, starttid och längd (durationMinutes). Sluttiden är starttid plus längd
+ * och måste ligga samma dag.
+ */
+function slotTimes(date: string, startTime: string, durationMinutes: number): { start: string; end: string } {
+  if (!DATE_RE.test(date ?? '')) throw badRequest('Datum saknas');
+  if (!TIME_RE.test(startTime ?? '')) throw badRequest('Starttid måste anges');
+  const start = localToUtc(date, startTime);
+  const end = addMinutes(start, durationMinutes);
+  if (utcToLocal(end).date !== date) throw badRequest('Matchen måste sluta samma dag som den börjar');
+  return { start, end };
+}
+
 /** Guards och fältvalidering som gäller både A1 och A2. */
 function validateMatchFields(ctx: Ctx, user: User, input: MatchFields) {
   const team = requireTeam(ctx, input.homeTeamId);
@@ -253,7 +267,7 @@ function validateMatchFields(ctx: Ctx, user: User, input: MatchFields) {
   if (!Number.isInteger(birthYear)) throw badRequest('Ogiltigt födelseår');
   const durationMinutes = Number(input.durationMinutes);
   if (!Number.isInteger(durationMinutes) || durationMinutes < 10 || durationMinutes > 180)
-    throw badRequest('Speltiden måste vara 10–180 minuter');
+    throw badRequest('Matchens längd måste vara 10–180 minuter');
   const kit = (input.kitColorHome ?? '').trim();
   if (!kit) throw badRequest('Ange hemmalagets matchställ');
   const contact = contactFor(user, team, input.phone);
@@ -268,8 +282,7 @@ const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 export interface CreateOwnSlotInput extends MatchFields {
   pitchId: string;
   date: string; // YYYY-MM-DD lokalt
-  startTime: string; // HH:mm lokalt
-  endTime: string; // HH:mm lokalt
+  startTime: string; // HH:mm lokalt, sluttid = starttid + durationMinutes
 }
 
 /**
@@ -278,13 +291,7 @@ export interface CreateOwnSlotInput extends MatchFields {
  */
 export function createOwnSlotMatch(ctx: Ctx, user: User, input: CreateOwnSlotInput): MatchEntity {
   const { team, birthYear, durationMinutes, kit, contact } = validateMatchFields(ctx, user, input);
-  if (!DATE_RE.test(input.date ?? '')) throw badRequest('Datum saknas');
-  if (!TIME_RE.test(input.startTime ?? '') || !TIME_RE.test(input.endTime ?? ''))
-    throw badRequest('Start- och sluttid måste anges');
-
-  const startTime = localToUtc(input.date, input.startTime);
-  const endTime = localToUtc(input.date, input.endTime);
-  if (endTime <= startTime) throw badRequest('Sluttiden måste vara efter starttiden');
+  const { start: startTime, end: endTime } = slotTimes(input.date, input.startTime, durationMinutes);
   if (startTime <= ctx.clock.nowIso()) throw badRequest('Starttiden har redan passerat');
 
   const venue = getPitchWithFacility(ctx, input.pitchId);
@@ -332,8 +339,7 @@ export function createOwnSlotMatch(ctx: Ctx, user: User, input: CreateOwnSlotInp
 
 export interface CreateWeekendSlotInput extends MatchFields {
   date: string; // YYYY-MM-DD lokalt, lördag eller söndag
-  windowStart: string; // HH:mm lokalt, önskat tidsfönster
-  windowEnd: string;
+  startTime: string; // HH:mm lokalt, önskad starttid. Önskad tid = starttid + durationMinutes.
 }
 
 /** AC-101.2 */
@@ -344,7 +350,7 @@ export const TOO_LATE_MESSAGE = 'Helgtider måste begäras minst 21 dagar i för
 /**
  * AC-101.1 / A1: Spår 1 skapar matchen i RESERVATION_REQUESTED och skickar REQUEST_RESERVATION
  * till Process B. Plan och tid sätts när kansliet tilldelat plan (A3). Tills dess håller
- * matchen det önskade tidsfönstret som start- och sluttid, och plan-fälten är tomma.
+ * matchen den önskade tiden (starttid + längd) och plan-fälten är tomma.
  */
 export function createWeekendSlotMatch(ctx: Ctx, user: User, input: CreateWeekendSlotInput): MatchEntity {
   const { team, birthYear, durationMinutes, kit, contact } = validateMatchFields(ctx, user, input);
@@ -352,13 +358,10 @@ export function createWeekendSlotMatch(ctx: Ctx, user: User, input: CreateWeeken
   if (!isWeekendDate(input.date)) throw badRequest(WEEKDAY_MESSAGE); // BR-01
   const today = utcToLocal(ctx.clock.nowIso()).date;
   if (daysBetweenDates(today, input.date) < MIN_LEAD_DAYS_TRACK1) throw badRequest(TOO_LATE_MESSAGE); // BR-06
-  if (!TIME_RE.test(input.windowStart ?? '') || !TIME_RE.test(input.windowEnd ?? ''))
-    throw badRequest('Ange önskat tidsfönster');
-  const startTime = localToUtc(input.date, input.windowStart);
-  const endTime = localToUtc(input.date, input.windowEnd);
-  if (endTime <= startTime) throw badRequest('Tidsfönstrets slut måste vara efter dess början');
+  const { start: startTime, end: endTime } = slotTimes(input.date, input.startTime, durationMinutes);
 
-  const timeWindow = `${input.windowStart}-${input.windowEnd}`;
+  // 4.1: preferredTimeWindow är den önskade tiden, t.ex. "10:00-11:00".
+  const timeWindow = `${input.startTime}-${utcToLocal(endTime).time}`;
   const id = newId('mat');
   const now = ctx.clock.nowIso();
 

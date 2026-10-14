@@ -136,13 +136,15 @@ bakgrundsprocess var 5:e sekund, akuta först. `ConsoleEmailSender` byts mot en 
 7. **Externa lag:** en andra ledare kan koppla sig till ett externt lag utan godkännande (`NOT_REQUIRED`),
    i linje med avsnitt 8 punkt 10.
 8. **Påminnelsetidpunkterna** (vid sluttid och +24 h) är fortfarande **[FÖRSLAG]** i specen.
-9. **Spår 1 före tilldelning:** matchen håller det önskade tidsfönstret som start- och sluttid och har tomma
+9. **Spår 1 före tilldelning:** matchen håller den önskade tiden som start- och sluttid och har tomma
    planfält tills `RESERVATION_RESERVED` tas emot (A3). Den visas inte på börsen.
 10. **`reservationId`:** `REQUEST_RESERVATION` (4.1) saknar id, så Process B skapar reservationen och Process A
     får id:t med `RESERVATION_RESERVED` eller `RESERVATION_REJECTED`. Ett `RESERVATION_WITHDRAWN` från
     `RESERVATION_REQUESTED` (A5) saknar därför `reservationId`. Process B hittar reservationen via `matchId`.
-11. **Tilldelad tid:** kansliet väljer start och slut på det begärda datumet, förifyllt med önskat fönster.
-    Att tiden ligger inom fönstret kontrolleras inte.
+11. **Tid anges som starttid och längd** (`durationMinutes`, 60 min som standard i formulären), både när en
+    match skapas och när kansliet tilldelar plan. Sluttiden är starttid plus längd och måste ligga samma dag.
+    `preferredTimeWindow` (4.1) blir den önskade tiden, t.ex. `10:00-11:00`. Kansliet kan ändra starttid och
+    längd vid tilldelningen. Att den tilldelade tiden ligger inom den önskade kontrolleras inte.
 12. **Överlapp (B2)** kontrolleras mot andra Spår 1-bokningar som håller en plantid (`RESERVED`, `ACCEPTED`),
     inte mot Spår 2-matcher, eftersom Spår 2 inte ska påverka kansliet (BR-02).
 13. **14-dagarsfristen (BR-03)** spärrar även val av motståndare i Process A när reservationen fortfarande är

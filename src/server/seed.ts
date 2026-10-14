@@ -89,7 +89,7 @@ export function seed(ctx: Ctx): void {
   ctx.clock.advance(-40 * 86_400_000);
   const levels = ['MEDIUM', 'MEDIUM_PLUS', 'MEDIUM'] as const;
   for (let i = 0; i < 3; i++) {
-    const m = matches.createOwnSlotMatch(ctx, lena, { ...base, pitchId: p2.id, date: localDatePlusDays(ctx, 1 + i), startTime: '17:30', endTime: '18:45' });
+    const m = matches.createOwnSlotMatch(ctx, lena, { ...base, pitchId: p2.id, date: localDatePlusDays(ctx, 1 + i), startTime: '17:30', durationMinutes: 75 });
     const inq = matches.createInquiry(ctx, anna, m.id, { teamId: ham.team.id, phone: '+46 70 123 45 67' });
     matches.selectOpponent(ctx, lena, m.id, inq.id);
     ctx.clock.advance((2 + i) * 86_400_000);
@@ -105,7 +105,7 @@ export function seed(ctx: Ctx): void {
   ctx.clock.reset();
 
   // Aktuella matcher på börsen (Spår 2).
-  const m1 = matches.createOwnSlotMatch(ctx, lena, { ...base, pitchId: p2.id, date: localDatePlusDays(ctx, 5), startTime: '17:30', endTime: '18:45' });
+  const m1 = matches.createOwnSlotMatch(ctx, lena, { ...base, pitchId: p2.id, date: localDatePlusDays(ctx, 5), startTime: '17:30', durationMinutes: 75 });
   matches.createInquiry(ctx, anna, m1.id, { teamId: ham.team.id, phone: '+46 70 123 45 67' });
   matches.createInquiry(ctx, erik, m1.id, { teamId: dif.team.id, phone: '+46 73 555 66 77' });
   matches.createOwnSlotMatch(ctx, lena, {
@@ -113,7 +113,7 @@ export function seed(ctx: Ctx): void {
     pitchId: p1.id,
     date: localDatePlusDays(ctx, 12),
     startTime: '18:00',
-    endTime: '19:30',
+    durationMinutes: 90,
     gameFormat: '9v9',
     openToAdjacentBirthYears: false,
     matchLevel: 'HARD',
@@ -126,7 +126,7 @@ export function seed(ctx: Ctx): void {
     pitchId: v2.id,
     date: localDatePlusDays(ctx, 8),
     startTime: '16:30',
-    endTime: '17:45',
+    durationMinutes: 75,
     birthYear: 2014,
     category: 'GIRLS',
     matchLevel: 'EASY_PLUS',
@@ -135,15 +135,14 @@ export function seed(ctx: Ctx): void {
   void taby;
 
   // Spår 1: en förfrågan i kansliets kö och en tilldelad helgtid som ligger på börsen.
-  const weekendBase = { ...base, durationMinutes: 70, referee: 'SHARED_ON_SITE' as const, openToAdjacentBirthYears: false };
-  matches.createWeekendSlotMatch(ctx, lena, { ...weekendBase, date: weekendPlusDays(ctx, 24), windowStart: '10:00', windowEnd: '13:00' });
+  const weekendBase = { ...base, durationMinutes: 90, referee: 'SHARED_ON_SITE' as const, openToAdjacentBirthYears: false };
+  matches.createWeekendSlotMatch(ctx, lena, { ...weekendBase, date: weekendPlusDays(ctx, 24), startTime: '10:00' });
   const fiaWeekend = matches.createWeekendSlotMatch(ctx, fia, {
     ...weekendBase,
     homeTeamId: lidF14.team.id,
     phone: '+46 70 999 88 77',
     date: weekendPlusDays(ctx, 30),
-    windowStart: '12:00',
-    windowEnd: '15:00',
+    startTime: '12:00',
     birthYear: 2014,
     category: 'GIRLS',
     matchLevel: 'MEDIUM',
@@ -151,7 +150,7 @@ export function seed(ctx: Ctx): void {
   });
   dispatcher.dispatch(ctx);
   const fiaReservation = reservations.getReservationForMatch(ctx, fiaWeekend.id)!;
-  reservations.allocatePitch(ctx, office, fiaReservation.id, { pitchId: v2.id, startTime: '12:00', endTime: '13:30' });
+  reservations.allocatePitch(ctx, office, fiaReservation.id, { pitchId: v2.id, startTime: '12:00' });
   dispatcher.dispatch(ctx);
 
   // Dev-seed ska inte skicka e-post i efterhand.

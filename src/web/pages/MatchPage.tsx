@@ -59,7 +59,7 @@ export function MatchPage() {
         )}
         <dl className="facts">
           <dt>Ålder</dt><dd>{categoryLabel[m.category]} {m.birthYear}{m.openToAdjacentBirthYears && ' (öppen för ett år yngre eller äldre)'}</dd>
-          <dt>Spelform</dt><dd>{gameFormatLabel[m.gameFormat]}, speltid {m.durationMinutes} min</dd>
+          <dt>Spelform</dt><dd>{gameFormatLabel[m.gameFormat]}, {m.durationMinutes} min</dd>
           <dt>Matchnivå</dt><dd>{levelLabel[m.matchLevel]}</dd>
           <dt>Plats</dt>
           <dd>
@@ -194,7 +194,7 @@ function ReservationInfo({ r, matchStatus }: { r: NonNullable<MatchDetail['reser
     <div>
       <p>
         Helgtid via kansliet: <strong>{reservationStatusLabel[r.status]}</strong>
-        <span className="muted small"> · önskat {r.requestedDate} kl {r.timeWindow}</span>
+        <span className="muted small"> · önskat {r.requestedDate} kl {r.timeWindow.replace('-', '–')}</span>
       </p>
       {r.status === 'REQUESTED' && <Info>Kansliet har fått er förfrågan. Matchen publiceras på börsen när en plan är tilldelad.</Info>}
       {r.status === 'RESERVED' && matchStatus === 'PUBLISHED' && (

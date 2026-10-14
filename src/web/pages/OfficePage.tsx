@@ -7,7 +7,7 @@ import { formatDateTime, formatSlot } from '../../shared/time';
 import { api, ApiError } from '../api';
 import { useAction, useApi } from '../hooks';
 import { RequireUser } from '../components/RequireUser';
-import { ErrorBox, Field, Loading, ageLabel, teamLabel } from '../components/ui';
+import { ErrorBox, Field, Loading, TimeInput, ageLabel, endTimeLabel, teamLabel } from '../components/ui';
 
 type MembershipRow = TeamMembership & { team: Team; user: { id: string; name: string; email: string } };
 type FacilityWithPitches = Facility & { pitches: Pitch[] };
@@ -119,8 +119,10 @@ function QueueItem({ r, facilities, act, busy }: {
   act: (fn: () => Promise<unknown>) => Promise<unknown>;
   busy: boolean;
 }) {
-  const [windowStart, windowEnd] = r.timeWindow.split('-');
-  const [form, setForm] = useState({ pitchId: '', startTime: windowStart, endTime: windowEnd });
+  // Förifyllt med den önskade tiden: starttid och längd.
+  const [wishStart, wishEnd] = r.timeWindow.split('-');
+  const wishMinutes = (Number(wishEnd.slice(0, 2)) * 60 + Number(wishEnd.slice(3))) - (Number(wishStart.slice(0, 2)) * 60 + Number(wishStart.slice(3)));
+  const [form, setForm] = useState({ pitchId: '', startTime: wishStart, durationMinutes: wishMinutes });
   const options = facilities.flatMap((f) =>
     f.pitches.filter((p) => p.supportedFormats.includes(r.gameFormat)).map((p) => ({ id: p.id, label: `${f.name}, ${p.name} (${surfaceLabel[p.surface].toLowerCase()})` })),
   );
@@ -142,7 +144,7 @@ function QueueItem({ r, facilities, act, busy }: {
   return (
     <form className="form" onSubmit={(e) => { e.preventDefault(); void act(() => allocate()); }}>
       <div>
-        <strong>{dateLabel(r.requestedDate)} kl {r.timeWindow}</strong>
+        <strong>{dateLabel(r.requestedDate)} kl {r.timeWindow.replace('-', '–')}</strong>
         <div>{requestLabel(r)}</div>
         <div className="muted small">Inkom {formatDateTime(r.createdAt)} · motståndare ska vara vald senast {formatDateTime(r.deadlineAt)}</div>
       </div>
@@ -153,11 +155,11 @@ function QueueItem({ r, facilities, act, busy }: {
         </select>
       </Field>
       <div className="two">
-        <Field label="Start">
-          <input type="time" required value={form.startTime} onChange={(e) => setForm({ ...form, startTime: e.target.value })} />
+        <Field label="Starttid">
+          <TimeInput label="Starttid" value={form.startTime} onChange={(v) => setForm({ ...form, startTime: v })} />
         </Field>
-        <Field label="Slut">
-          <input type="time" required value={form.endTime} onChange={(e) => setForm({ ...form, endTime: e.target.value })} />
+        <Field label="Längd (min)" hint={`Slutar ${endTimeLabel(form.startTime, form.durationMinutes)}`}>
+          <input type="number" min={10} max={180} step={5} required value={form.durationMinutes} onChange={(e) => setForm({ ...form, durationMinutes: Number(e.target.value) })} />
         </Field>
       </div>
       <div className="actions">

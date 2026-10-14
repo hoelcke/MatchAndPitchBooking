@@ -5,7 +5,7 @@ import { GAME_FORMATS, LEVELS, TEAM_CATEGORIES } from '../../shared/types';
 import { categoryLabel, gameFormatLabel, levelLabel } from '../../shared/labels';
 import { useApi } from '../hooks';
 import { useSession } from '../session';
-import { ErrorBox, Loading, MatchCard } from '../components/ui';
+import { DateInput, ErrorBox, Loading, MatchCard } from '../components/ui';
 
 /** FR-A-102: Matchbörsen. Öppen även för gäster, utan kontaktuppgifter. */
 export function MarketPage() {
@@ -57,8 +57,8 @@ export function MarketPage() {
               <option key={l} value={l}>{levelLabel[l]}</option>
             ))}
           </select>
-          <label className="inline-field">Från <input type="date" value={filters.dateFrom} onChange={set('dateFrom')} /></label>
-          <label className="inline-field">Till <input type="date" value={filters.dateTo} onChange={set('dateTo')} /></label>
+          <label className="inline-field">Från <DateInput label="Från" value={filters.dateFrom} onChange={(v) => set('dateFrom')({ target: { value: v } })} /></label>
+          <label className="inline-field">Till <DateInput label="Till" value={filters.dateTo} onChange={(v) => set('dateTo')({ target: { value: v } })} /></label>
           {active && (
             <button className="link-button" onClick={() => setFilters({ gameFormat: '', category: '', matchLevel: '', birthYear: '', dateFrom: '', dateTo: '' })}>
               Rensa filter

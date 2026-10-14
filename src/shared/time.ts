@@ -114,3 +114,7 @@ export function isWeekendDate(date: string): boolean {
   const day = new Date(Date.UTC(y, m - 1, d)).getUTCDay();
   return day === 0 || day === 6;
 }
+
+export function addMinutes(iso: string, minutes: number): string {
+  return new Date(new Date(iso).getTime() + minutes * 60_000).toISOString().replace('.000Z', 'Z');
+}
