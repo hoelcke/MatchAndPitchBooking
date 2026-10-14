@@ -45,7 +45,7 @@ loggas i stället för att skickas), outbox-event och revisionsloggen.
 Övriga kommandon:
 
 ```bash
-npm test           # domäntester (vitest)
+npm test           # domäntester och HTTP-integrationstester (vitest)
 npm run typecheck
 npm run build && npm start   # produktionsläge, SPA:n serveras av API-servern
 ```

@@ -25,6 +25,7 @@ import {
   daysBetweenDates,
   formatDateTime,
   formatSlot,
+  isValidDate,
   isWeekendDate,
   localToUtc,
   utcToLocal,
@@ -192,6 +193,11 @@ function transitionMatch(
 }
 
 function transitionInquiry(ctx: Ctx, inquiry: InquiryEntity, to: InquiryStatus, userId: string, conflictMessage: string): void {
+  if (!tryTransitionInquiry(ctx, inquiry, to, userId)) throw conflict(conflictMessage);
+}
+
+/** BR-16 utan undantag: returnerar false om anmälan redan har bytt status (t.ex. dragits tillbaka). */
+function tryTransitionInquiry(ctx: Ctx, inquiry: InquiryEntity, to: InquiryStatus, userId: string): boolean {
   const changed = run(
     ctx.db,
     `UPDATE inquiries SET status = ?, updated_at = ? WHERE id = ? AND status = ?`,
@@ -200,8 +206,9 @@ function transitionInquiry(ctx: Ctx, inquiry: InquiryEntity, to: InquiryStatus, 
     inquiry.id,
     inquiry.status,
   );
-  if (changed !== 1) throw conflict(conflictMessage);
+  if (changed !== 1) return false;
   audit(ctx, { userId, entityType: 'Inquiry', entityId: inquiry.id, transition: `${inquiry.status} -> ${to}` });
+  return true;
 }
 
 function refreshInquiriesCount(ctx: Ctx, matchId: string): void {
@@ -418,6 +425,9 @@ export interface MarketFilters {
 
 /** AC-102.2/102.3: endast PUBLISHED, utan kontaktuppgifter. */
 export function listMarket(ctx: Ctx, f: MarketFilters): MatchCard[] {
+  // 3.1: ogiltiga filtervärden ger 400 i stället för ett internt fel.
+  for (const d of [f.dateFrom, f.dateTo]) if (d !== undefined && !isValidDate(d)) throw badRequest('Ogiltigt datum, ange ÅÅÅÅ-MM-DD');
+  if (f.birthYear !== undefined && !Number.isInteger(f.birthYear)) throw badRequest('Ogiltigt födelseår');
   const where = [`status = 'PUBLISHED'`, `start_time > ?`];
   const params: SqlParam[] = [ctx.clock.nowIso()];
   if (f.gameFormat) {
@@ -508,13 +518,19 @@ export interface ReservationSummary {
 }
 
 /**
- * BR-03: i Spår 1 kan motståndare inte väljas efter 14-dagarsfristen om reservationen
- * fortfarande är RESERVED. Efter ett återbud (BR-04) är den redan ACCEPTED och fristen gäller inte.
+ * BR-03: i Spår 1 får motståndare bara väljas medan plantiden gäller, dvs. reservationen är
+ * RESERVED inom 14-dagarsfristen, eller ACCEPTED efter ett återbud (BR-04, fristen gäller inte då).
+ * Allt annat nekas, även när Process B redan har återkallat plantiden (B7) men Process A ännu inte
+ * har tagit emot händelsen och ställt in matchen (A10). Returnerar felmeddelandet, eller undefined.
  */
-function track1DeadlinePassed(ctx: Ctx, m: MatchEntity): boolean {
-  if (m.origin !== 'NEW_WEEKEND_SLOT') return false;
+function track1SelectionBlocked(ctx: Ctx, m: MatchEntity): string | undefined {
+  if (m.origin !== 'NEW_WEEKEND_SLOT') return undefined;
   const res = getReservationForMatch(ctx, m.id);
-  return !!res && res.status === 'RESERVED' && ctx.clock.nowIso() > res.deadlineAt;
+  if (res?.status === 'ACCEPTED') return undefined;
+  if (res?.status === 'RESERVED') {
+    return ctx.clock.nowIso() > res.deadlineAt ? '14-dagarsfristen har passerat. Plantiden återkallas.' : undefined;
+  }
+  return 'Plantiden är inte längre bokad';
 }
 
 export function getMatchDetail(ctx: Ctx, matchId: string, user: User | undefined): MatchDetail {
@@ -529,9 +545,11 @@ export function getMatchDetail(ctx: Ctx, matchId: string, user: User | undefined
   const all_ = inquiriesFor(ctx, m.id);
   const myInquiries = all_.filter((i) => myTeams.some((t) => t.teamId === i.teamId));
   const isInvolved = isHomeLeader || isAwayLeader || myInquiries.length > 0;
+  // Kansliet och administratören behöver kunna öppna matcher från bokningskön och recensionerna.
+  const isStaff = user?.role === 'OFFICE' || user?.role === 'ADMIN';
 
-  // AC-102.3: matcher som inte är PUBLISHED visas bara för inblandade lag.
-  if (m.status !== 'PUBLISHED' && !isInvolved) throw notFound('Matchen finns inte på börsen');
+  // AC-102.3: matcher som inte är PUBLISHED visas bara för inblandade lag (och kansli/admin).
+  if (m.status !== 'PUBLISHED' && !isInvolved && !isStaff) throw notFound('Matchen finns inte på börsen');
 
   const started = m.venue.startTime <= now;
   const busyTeamIds = new Set(all_.filter((i) => i.status === 'ACTIVE' || i.status === 'SELECTED').map((i) => i.teamId));
@@ -564,7 +582,7 @@ export function getMatchDetail(ctx: Ctx, matchId: string, user: User | undefined
     inquiries: isHomeLeader ? all_.map(toView) : undefined,
     allowed: {
       inquire: !!user && m.status === 'PUBLISHED' && !started && eligibleTeams.length > 0,
-      select: isHomeLeader && m.status === 'PUBLISHED' && !started && m.inquiriesCount > 0 && !track1DeadlinePassed(ctx, m),
+      select: isHomeLeader && m.status === 'PUBLISHED' && !started && m.inquiriesCount > 0 && !track1SelectionBlocked(ctx, m),
       cancel: isHomeLeader && ['RESERVATION_REQUESTED', 'PUBLISHED', 'MATCH_CONFIRMED'].includes(m.status) && !started,
       withdrawAsOpponent: isAwayLeader && m.status === 'MATCH_CONFIRMED' && !started,
       confirmCompleted: isHomeLeader && m.status === 'MATCH_CONFIRMED' && now >= confirmFrom && now <= confirmUntil,
@@ -671,7 +689,8 @@ export function selectOpponent(ctx: Ctx, user: User, matchId: string, inquiryId:
     if (!isActiveLeader(ctx, user.id, m.homeTeamId)) throw forbidden('Endast hemmalagets ledare kan välja motståndare');
     if (m.status !== 'PUBLISHED') throw conflict('Matchen söker inte motståndare');
     if (m.venue.startTime <= ctx.clock.nowIso()) throw conflict('Matchens starttid har passerat');
-    if (track1DeadlinePassed(ctx, m)) throw conflict('14-dagarsfristen har passerat. Plantiden återkallas.');
+    const blocked = track1SelectionBlocked(ctx, m);
+    if (blocked) throw conflict(blocked);
 
     const r = one<InquiryRow>(ctx.db, `SELECT * FROM inquiries WHERE id = ? AND match_id = ?`, inquiryId, m.id);
     if (!r) throw notFound('Intresseanmälan finns inte');
@@ -680,8 +699,9 @@ export function selectOpponent(ctx: Ctx, user: User, matchId: string, inquiryId:
     if (chosen.status !== 'ACTIVE') throw conflict('Intresseanmälan har dragits tillbaka av motståndaren');
     transitionInquiry(ctx, chosen, 'SELECTED', user.id, 'Intresseanmälan har dragits tillbaka av motståndaren');
 
-    const others = inquiriesFor(ctx, m.id, 'ACTIVE');
-    for (const o of others) transitionInquiry(ctx, o, 'REJECTED', user.id, 'Intresseanmälningarna ändrades samtidigt');
+    // Avvisa bara anmälningar som fortfarande är ACTIVE. En som hunnit dras tillbaka hoppas över
+    // i stället för att hela valet rullas tillbaka (och får då inget avböjt-mejl).
+    const others = inquiriesFor(ctx, m.id, 'ACTIVE').filter((o) => tryTransitionInquiry(ctx, o, 'REJECTED', user.id));
 
     let eventId: string | undefined;
     if (m.reservationId) {

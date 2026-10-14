@@ -57,3 +57,5 @@ SQLite through `node:sqlite`. The schema is the `SCHEMA` string in `infra/db.ts`
 ### Tests
 
 The domain tests ([track1.test.ts](src/server/__tests__/track1.test.ts), [track2.test.ts](src/server/__tests__/track2.test.ts)) build a fresh `openDb(':memory:')` plus a `FixedClock` in `beforeEach`. They call the module functions directly (not over HTTP), drive the outbox with `createDispatcher().dispatch(ctx)`, and assert on `audit_log` / outbox rows. `describe` names reference spec IDs. Follow the same pattern for new behaviour.
+
+[http.test.ts](src/server/__tests__/http.test.ts) covers the HTTP layer: it starts `createApp` on a random port with dev tools on, logs in through `/dev/login`, and asserts on status codes and error codes (routing, roles, CSRF guard, validation). Add a case there when you add an endpoint or change its permissions.

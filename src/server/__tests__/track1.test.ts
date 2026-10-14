@@ -135,6 +135,20 @@ describe('A1 / FR-A-101: skapa match i Spår 1', () => {
   });
 });
 
+describe('AC-102.3: åtkomst till matcher som inte är publicerade', () => {
+  it('kansliet och administratören kan öppna en match som väntar på plan, andra lag kan inte', () => {
+    const { match } = requested();
+    const admin = identity.createUser(ctx, { name: 'Admin', email: 'a@x.se', role: 'ADMIN' });
+    expect(matches.getMatchDetail(ctx, match.id, office).match.id).toBe(match.id);
+    expect(matches.getMatchDetail(ctx, match.id, admin).match.id).toBe(match.id);
+    const detail = matches.getMatchDetail(ctx, match.id, office);
+    expect(detail.match.homeContact).toBeUndefined();
+    expect(Object.values(detail.allowed).every((v) => v === false)).toBe(true);
+    expect(() => matches.getMatchDetail(ctx, match.id, anna)).toThrow(/finns inte på börsen/);
+    expect(() => matches.getMatchDetail(ctx, match.id, undefined)).toThrow(/finns inte på börsen/);
+  });
+});
+
 describe('B2 / A3 / FR-B-201: kansliet tilldelar plan', () => {
   it('AC-201.2 / AC-102.1: tilldelning publicerar matchen med plan och tid', () => {
     const { match, reservation } = requested();
@@ -313,6 +327,26 @@ describe('B7 / A10 / FR-B-202: 14-dagarsregeln', () => {
     ctx.clock.set('2026-10-24T22:00:00Z');
     expect(matches.getMatchDetail(ctx, match.id, lena).allowed.select).toBe(false);
     expect(() => matches.selectOpponent(ctx, lena, match.id, inq.id)).toThrow(/14-dagarsfristen/);
+  });
+
+  it('BR-03: nekar val när plantiden återkallats men Process A ännu inte fått händelsen', () => {
+    const { match } = published();
+    const inq = matches.createInquiry(ctx, anna, match.id, { teamId: hamTeamId, phone: '+46701234567' });
+    ctx.clock.set('2026-10-24T22:00:00Z');
+    expect(reservations.runReservationDeadlines(ctx).revoked).toBe(1);
+    // Ingen dispatch: matchen är fortfarande PUBLISHED, men bokningen är REVOKED_BY_DEADLINE.
+    expect(status(match.id)).toBe('PUBLISHED');
+    expect(matches.getMatchDetail(ctx, match.id, lena).allowed.select).toBe(false);
+    expect(() => matches.selectOpponent(ctx, lena, match.id, inq.id)).toThrow(/inte längre bokad/);
+    expect(one(ctx.db, `SELECT 1 FROM outbox_events WHERE event_type = 'RESERVATION_ACCEPTED'`)).toBeUndefined();
+  });
+
+  it('BR-03: nekar val när kansliet ställt in bokningen före händelsen nått Process A', () => {
+    const { match, reservation } = published();
+    const inq = matches.createInquiry(ctx, anna, match.id, { teamId: hamTeamId, phone: '+46701234567' });
+    reservations.cancelByOffice(ctx, office, reservation.id, 'Planen är avstängd');
+    expect(status(match.id)).toBe('PUBLISHED');
+    expect(() => matches.selectOpponent(ctx, lena, match.id, inq.id)).toThrow(/inte längre bokad/);
   });
 
   it('BR-04: efter återbud räknas fristen inte om', () => {
