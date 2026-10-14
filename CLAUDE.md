@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Matchbörsen & Planbokning: a web app for IFK Lidingö's practice matches, built from the requirements spec in [docs/kravspecifikation-v1.1.1.md](docs/kravspecifikation-v1.1.1.md). Both tracks are implemented: **Spår 1** (home team requests a weekend slot, the office allocates a pitch in Process B, then the match is published) and **Spår 2** (home team already has its own training slot and publishes straight to the market). [README.md](README.md) has the requirement traceability table and a list of spec interpretations that are still open for review. Read it before changing domain behaviour.
 
-The codebase, UI text, comments and error messages are in **Swedish**. Code comments cite spec IDs (`BR-16`, `AC-103.4`, `A7`, `FR-A-104`, `NFR-05`, …). Keep that convention so changes stay traceable to the spec. [docs/erd.md](docs/erd.md) has a Mermaid ER diagram of the schema.
+The codebase, UI text, comments and error messages are in **Swedish**. Code comments cite spec IDs (`BR-16`, `AC-103.4`, `A7`, `FR-A-104`, `NFR-05`, …). Keep that convention so changes stay traceable to the spec. [docs/erd.md](docs/erd.md) has a Mermaid ER diagram of the schema, and [docs/arbetsfloden.html](docs/arbetsfloden.html) shows the three processes as case lifecycles (stages, steps, statuses, spec IDs and the events between processes). Update both when the schema or a workflow changes.
 
 ## Commands
 
