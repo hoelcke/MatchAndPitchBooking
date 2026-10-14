@@ -62,6 +62,8 @@ arbetsflödena som case lifecycles (`arbetsfloden.html`) och informationsobjekte
 integrationer (`informationsobjekt.html`) samt rollerna med behörighetsmatris (`personas.html`).
 HTML-filerna öppnas i en webbläsare. `bpmn/matchborsen.bpmn` är processerna som BPMN 2.0 för Camunda 8 Modeler
 (tre pooler med meddelandeflöden för händelserna), med en färdig bild i `bpmn/matchborsen.svg`.
+`dmn/matchborsen.dmn` är affärsreglerna som DMN 1.3-beslutstabeller för Camunda 8, med beslutsdiagrammet i
+`dmn/matchborsen.svg`.
 
 ```
 src/
