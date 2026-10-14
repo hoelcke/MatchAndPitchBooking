@@ -5,18 +5,23 @@ import type { Ctx } from './context.js';
 import type { User } from '../shared/types.js';
 import { openDb, one, run } from './infra/db.js';
 import { Clock } from './infra/clock.js';
-import { utcToLocal } from '../shared/time.js';
+import { addDaysToDate, isWeekendDate, utcToLocal } from '../shared/time.js';
 import * as identity from './modules/identity.js';
 import * as masterdata from './modules/masterdata.js';
 import * as matches from './modules/matches.js';
 import * as fairplay from './modules/fairplay.js';
+import * as reservations from './modules/reservations.js';
 import { createDispatcher } from './runtime.js';
 
 function localDatePlusDays(ctx: Ctx, days: number): string {
-  const today = utcToLocal(ctx.clock.nowIso()).date;
-  const d = new Date(`${today}T12:00:00Z`);
-  d.setUTCDate(d.getUTCDate() + days);
-  return d.toISOString().slice(0, 10);
+  return addDaysToDate(utcToLocal(ctx.clock.nowIso()).date, days);
+}
+
+/** Första lördag eller söndag minst `days` dagar fram (Spår 1, BR-01 och BR-06). */
+function weekendPlusDays(ctx: Ctx, days: number): string {
+  let date = localDatePlusDays(ctx, days);
+  while (!isWeekendDate(date)) date = addDaysToDate(date, 1);
+  return date;
 }
 
 export function seedIfEmpty(ctx: Ctx): void {
@@ -128,6 +133,26 @@ export function seed(ctx: Ctx): void {
     kitColorHome: 'Blått',
   });
   void taby;
+
+  // Spår 1: en förfrågan i kansliets kö och en tilldelad helgtid som ligger på börsen.
+  const weekendBase = { ...base, durationMinutes: 70, referee: 'SHARED_ON_SITE' as const, openToAdjacentBirthYears: false };
+  matches.createWeekendSlotMatch(ctx, lena, { ...weekendBase, date: weekendPlusDays(ctx, 24), windowStart: '10:00', windowEnd: '13:00' });
+  const fiaWeekend = matches.createWeekendSlotMatch(ctx, fia, {
+    ...weekendBase,
+    homeTeamId: lidF14.team.id,
+    phone: '+46 70 999 88 77',
+    date: weekendPlusDays(ctx, 30),
+    windowStart: '12:00',
+    windowEnd: '15:00',
+    birthYear: 2014,
+    category: 'GIRLS',
+    matchLevel: 'MEDIUM',
+    kitColorHome: 'Blått',
+  });
+  dispatcher.dispatch(ctx);
+  const fiaReservation = reservations.getReservationForMatch(ctx, fiaWeekend.id)!;
+  reservations.allocatePitch(ctx, office, fiaReservation.id, { pitchId: v2.id, startTime: '12:00', endTime: '13:30' });
+  dispatcher.dispatch(ctx);
 
   // Dev-seed ska inte skicka e-post i efterhand.
   run(ctx.db, `UPDATE email_outbox SET sent_at = created_at WHERE sent_at IS NULL`);

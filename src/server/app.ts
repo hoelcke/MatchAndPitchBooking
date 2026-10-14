@@ -11,6 +11,7 @@ import * as identity from './modules/identity.js';
 import * as masterdata from './modules/masterdata.js';
 import * as matches from './modules/matches.js';
 import * as fairplay from './modules/fairplay.js';
+import * as reservations from './modules/reservations.js';
 
 export interface AppConfig {
   googleClientId?: string;
@@ -175,9 +176,13 @@ export function createApp(ctx: Ctx, runtime: Runtime, config: AppConfig) {
 
   api.post('/matches', (req, res) => {
     const user = requireRole(req, 'TEAM_LEADER');
-    if (req.body?.origin === 'NEW_WEEKEND_SLOT')
-      throw new AppError(501, 'NOT_IMPLEMENTED', 'Spår 1 (ny helgtid via kansliet) ingår inte i detta utkast');
-    res.status(201).json(matches.createOwnSlotMatch(ctx, user, req.body));
+    res
+      .status(201)
+      .json(
+        req.body?.origin === 'NEW_WEEKEND_SLOT'
+          ? matches.createWeekendSlotMatch(ctx, user, req.body)
+          : matches.createOwnSlotMatch(ctx, user, req.body),
+      );
   });
 
   api.post('/matches/:id/inquiries', (req, res) => {
@@ -229,6 +234,24 @@ export function createApp(ctx: Ctx, runtime: Runtime, config: AppConfig) {
   api.post('/office/memberships/:id/decision', (req, res) => {
     const user = requireRole(req, 'OFFICE');
     res.json(identity.decideMembership(ctx, user, req.params.id, req.body?.approve === true));
+  });
+
+  // Process B: kansliets kö för helgtider (FR-B-201–206)
+  api.get('/office/reservations', (req, res) => {
+    requireRole(req, 'OFFICE');
+    res.json(reservations.listForOffice(ctx));
+  });
+
+  api.post('/office/reservations/:id/allocate', (req, res) => {
+    res.json(reservations.allocatePitch(ctx, requireRole(req, 'OFFICE'), req.params.id, req.body ?? {}));
+  });
+
+  api.post('/office/reservations/:id/reject', (req, res) => {
+    res.json(reservations.rejectRequest(ctx, requireRole(req, 'OFFICE'), req.params.id, req.body?.reason));
+  });
+
+  api.post('/office/reservations/:id/cancel', (req, res) => {
+    res.json(reservations.cancelByOffice(ctx, requireRole(req, 'OFFICE'), req.params.id, req.body?.reason));
   });
 
   api.get('/office/facilities', (req, res) => {

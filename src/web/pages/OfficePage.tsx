@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import type { Facility, GameFormat, Pitch, Surface, Team, TeamMembership } from '../../shared/types';
 import { GAME_FORMATS, SURFACES } from '../../shared/types';
-import { approvalStatusLabel, gameFormatLabel, surfaceLabel } from '../../shared/labels';
-import { formatDateTime } from '../../shared/time';
-import { api } from '../api';
+import type { ReservationView } from '../../server/modules/reservations';
+import { approvalStatusLabel, gameFormatLabel, reservationStatusLabel, surfaceLabel } from '../../shared/labels';
+import { formatDateTime, formatSlot } from '../../shared/time';
+import { api, ApiError } from '../api';
 import { useAction, useApi } from '../hooks';
 import { RequireUser } from '../components/RequireUser';
-import { ErrorBox, Field, Info, Loading, ageLabel, teamLabel } from '../components/ui';
+import { ErrorBox, Field, Loading, ageLabel, teamLabel } from '../components/ui';
 
 type MembershipRow = TeamMembership & { team: Team; user: { id: string; name: string; email: string } };
 type FacilityWithPitches = Facility & { pitches: Pitch[] };
@@ -15,12 +16,159 @@ export function OfficePage() {
   return (
     <RequireUser role="OFFICE">
       <h1>Kansli</h1>
-      <Info>Spår 1 (kö för helgtider) kommer i nästa version. I Spår 2 använder lagen sina egna träningstider och kansliet behöver inte göra något.</Info>
+      <Reservations />
       <Approvals />
       <Masterdata />
     </RequireUser>
   );
 }
+
+// ---------- Process B: helgtider (FR-B-201–206) ----------
+
+interface ReservationLists {
+  queue: ReservationView[];
+  active: ReservationView[];
+  closed: ReservationView[];
+}
+
+/** T.ex. "lör 7 nov." för ett lokalt datum (YYYY-MM-DD). */
+const dateLabel = (date: string) =>
+  new Intl.DateTimeFormat('sv-SE', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' }).format(new Date(`${date}T00:00:00Z`));
+
+const requestLabel = (r: ReservationView) =>
+  `${r.homeTeam.clubName} ${r.homeTeam.name} · ${gameFormatLabel[r.gameFormat]} · ${ageLabel(r)}`;
+
+/** Frågar efter en obligatorisk orsak (högst 200 tecken, 4.3 och 4.7). */
+function askReason(question: string): string | undefined {
+  const reason = window.prompt(`${question}\nOrsaken visas för de berörda lagen (högst 200 tecken).`)?.trim();
+  return reason ? reason.slice(0, 200) : undefined;
+}
+
+function Reservations() {
+  const { data, reload } = useApi<ReservationLists>('/office/reservations');
+  const { data: facilities } = useApi<FacilityWithPitches[]>('/facilities');
+  const action = useAction();
+  if (!data || !facilities) return <Loading />;
+
+  const act = async (fn: () => Promise<unknown>) => {
+    const ok = await action.run(fn);
+    await reload();
+    return ok;
+  };
+  const cancel = (r: ReservationView) => {
+    const reason = askReason(`Ställ in bokningen för ${r.homeTeam.clubName} ${r.homeTeam.name} ${dateLabel(r.requestedDate)}?`);
+    if (reason) void act(() => api.post(`/office/reservations/${r.id}/cancel`, { reason }));
+  };
+
+  return (
+    <>
+      <section className="card">
+        <h2>Förfrågningar om helgtider ({data.queue.length})</h2>
+        <ErrorBox message={action.error} />
+        {data.queue.length === 0 && <p className="muted">Inga förfrågningar att hantera.</p>}
+        <ul className="plain">
+          {data.queue.map((r) => (
+            <li key={r.id} className="sub">
+              <QueueItem r={r} facilities={facilities} act={act} busy={action.busy} />
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      <section className="card">
+        <h2>Tilldelade helgtider ({data.active.length})</h2>
+        {data.active.length === 0 && <p className="muted">Inga aktiva bokningar.</p>}
+        <ul className="plain">
+          {data.active.map((r) => (
+            <li key={r.id} className="inquiry">
+              <div>
+                <strong>{formatSlot(r.allocatedPitch!.startTime, r.allocatedPitch!.endTime)}</strong> · {r.allocatedPitch!.facilityName}, {r.allocatedPitch!.pitchName}
+                <div>{requestLabel(r)}</div>
+                <div className="small">
+                  {reservationStatusLabel[r.status]}
+                  {r.status === 'ACCEPTED' && r.opponent && <> mot {r.opponent.club} {r.opponent.teamName}</>}
+                  {r.status === 'RESERVED' && <span className="muted"> · motståndare senast {formatDateTime(r.deadlineAt)}</span>}
+                </div>
+              </div>
+              <button className="button small danger secondary" disabled={action.busy} onClick={() => cancel(r)}>Ställ in</button>
+            </li>
+          ))}
+        </ul>
+        {data.closed.length > 0 && (
+          <details>
+            <summary>Avslutade ({data.closed.length})</summary>
+            <ul className="plain">
+              {data.closed.map((r) => (
+                <li key={r.id} className="row small">
+                  <span>{dateLabel(r.requestedDate)} · {requestLabel(r)}{r.decisionReason && <span className="muted"> · {r.decisionReason}</span>}</span>
+                  <span>{reservationStatusLabel[r.status]}</span>
+                </li>
+              ))}
+            </ul>
+          </details>
+        )}
+      </section>
+    </>
+  );
+}
+
+/** AC-201.2: tilldela en plan som stödjer spelformen, eller avslå med orsak (AC-204.1). */
+function QueueItem({ r, facilities, act, busy }: {
+  r: ReservationView;
+  facilities: FacilityWithPitches[];
+  act: (fn: () => Promise<unknown>) => Promise<unknown>;
+  busy: boolean;
+}) {
+  const [windowStart, windowEnd] = r.timeWindow.split('-');
+  const [form, setForm] = useState({ pitchId: '', startTime: windowStart, endTime: windowEnd });
+  const options = facilities.flatMap((f) =>
+    f.pitches.filter((p) => p.supportedFormats.includes(r.gameFormat)).map((p) => ({ id: p.id, label: `${f.name}, ${p.name} (${surfaceLabel[p.surface].toLowerCase()})` })),
+  );
+
+  const allocate = async (overrideOverlap = false): Promise<unknown> => {
+    try {
+      return await api.post(`/office/reservations/${r.id}/allocate`, { ...form, overrideOverlap });
+    } catch (e) {
+      // Överlapp är en varning som kansliet kan åsidosätta.
+      if (e instanceof ApiError && e.code === 'OVERLAP' && window.confirm(`${e.message}.\n\nTilldela ändå?`)) return allocate(true);
+      throw e;
+    }
+  };
+  const reject = () => {
+    const reason = askReason(`Avslå förfrågan från ${r.homeTeam.clubName} ${r.homeTeam.name} ${dateLabel(r.requestedDate)}?`);
+    if (reason) void act(() => api.post(`/office/reservations/${r.id}/reject`, { reason }));
+  };
+
+  return (
+    <form className="form" onSubmit={(e) => { e.preventDefault(); void act(() => allocate()); }}>
+      <div>
+        <strong>{dateLabel(r.requestedDate)} kl {r.timeWindow}</strong>
+        <div>{requestLabel(r)}</div>
+        <div className="muted small">Inkom {formatDateTime(r.createdAt)} · motståndare ska vara vald senast {formatDateTime(r.deadlineAt)}</div>
+      </div>
+      <Field label="Plan" hint={options.length === 0 ? `Ingen aktiv plan stödjer ${gameFormatLabel[r.gameFormat].toLowerCase()}.` : undefined}>
+        <select required value={form.pitchId} onChange={(e) => setForm({ ...form, pitchId: e.target.value })}>
+          <option value="">Välj plan</option>
+          {options.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
+        </select>
+      </Field>
+      <div className="two">
+        <Field label="Start">
+          <input type="time" required value={form.startTime} onChange={(e) => setForm({ ...form, startTime: e.target.value })} />
+        </Field>
+        <Field label="Slut">
+          <input type="time" required value={form.endTime} onChange={(e) => setForm({ ...form, endTime: e.target.value })} />
+        </Field>
+      </div>
+      <div className="actions">
+        <button className="button small" disabled={busy}>Tilldela plan</button>
+        <button type="button" className="button small secondary" disabled={busy} onClick={reject}>Avslå</button>
+      </div>
+    </form>
+  );
+}
+
+// ---------- Ledarkopplingar och masterdata ----------
 
 /** FR-U-003: godkänn eller avslå IFK Lidingö-kopplingar. */
 function Approvals() {

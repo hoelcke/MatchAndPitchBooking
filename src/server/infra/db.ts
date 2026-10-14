@@ -107,6 +107,33 @@ CREATE TABLE IF NOT EXISTS inquiries (
 );
 CREATE INDEX IF NOT EXISTS idx_inquiries_match ON inquiries(match_id, status);
 
+-- Process B: planbokning för Spår 1 (ReservationEntity). En reservation per match.
+CREATE TABLE IF NOT EXISTS reservations (
+  id TEXT PRIMARY KEY,
+  match_id TEXT NOT NULL UNIQUE,       -- logisk koppling till Process A, ingen REFERENCES
+  home_team_id TEXT NOT NULL REFERENCES teams(id),
+  requested_date TEXT NOT NULL,        -- YYYY-MM-DD lokalt, lördag/söndag
+  time_window TEXT NOT NULL,           -- lokal tid, t.ex. '10:00-13:00'
+  game_format TEXT NOT NULL,
+  birth_year INTEGER NOT NULL,
+  category TEXT NOT NULL,
+  facility_id TEXT REFERENCES facilities(id),
+  pitch_id TEXT REFERENCES pitches(id),
+  facility_name TEXT,
+  pitch_name TEXT,
+  start_time TEXT,
+  end_time TEXT,
+  opponent TEXT,                       -- JSON från senaste RESERVATION_ACCEPTED
+  status TEXT NOT NULL CHECK (status IN ('REQUESTED','RESERVED','ACCEPTED','COMPLETED','REJECTED_BY_OFFICE',
+    'REVOKED_BY_DEADLINE','CANCELLED_BY_OFFICE','WITHDRAWN_BY_HOME','CLOSED_EXPIRED')),
+  decision_reason TEXT,
+  deadline_at TEXT NOT NULL,           -- matchdatum minus 14 dagar kl 23:59:59 Europe/Stockholm, i UTC
+  reserved_at TEXT,                    -- när planen tilldelades (AC-202.1)
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_reservations_status ON reservations(status, requested_date);
+
 CREATE TABLE IF NOT EXISTS fair_play_reviews (
   id TEXT PRIMARY KEY,
   match_id TEXT NOT NULL REFERENCES matches(id),

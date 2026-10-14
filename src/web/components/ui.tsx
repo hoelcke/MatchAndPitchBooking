@@ -42,11 +42,29 @@ export function TeamProfileLine({ team }: { team: Team }) {
   );
 }
 
+/** Spår 1 före tilldelning: matchen har bara ett önskat tidsfönster och ingen plan (A1). */
+export const hasPitch = (m: Pick<MatchCardData, 'venue'>) => !!m.venue.pitchId;
+
+export function slotLabel(m: Pick<MatchCardData, 'venue'>) {
+  const slot = formatSlot(m.venue.startTime, m.venue.endTime);
+  return hasPitch(m) ? slot : `Önskat: ${slot}`;
+}
+
+export function VenueLine({ match }: { match: Pick<MatchCardData, 'venue' | 'status'> }) {
+  const v = match.venue;
+  if (!hasPitch(match)) return <>{match.status === 'RESERVATION_REQUESTED' ? 'Plan tilldelas av kansliet' : 'Ingen plan tilldelades'}</>;
+  return (
+    <>
+      {v.facilityName}, {v.pitchName} ({surfaceLabel[v.surface].toLowerCase()}) · {v.facilityAddress}
+    </>
+  );
+}
+
 export function MatchCard({ match }: { match: MatchCardData }) {
   return (
     <Link to={`/matcher/${match.id}`} className={`card match-card${match.isUrgent && match.status === 'PUBLISHED' ? ' urgent' : ''}`}>
       <div className="match-card-head">
-        <span className="match-when">{formatSlot(match.venue.startTime, match.venue.endTime)}</span>
+        <span className="match-when">{slotLabel(match)}</span>
         <StatusBadge status={match.status} urgent={match.isUrgent} />
       </div>
       <div className="match-title">
@@ -58,9 +76,7 @@ export function MatchCard({ match }: { match: MatchCardData }) {
         <span className="chip">{gameFormatLabel[match.gameFormat]}</span>
         <span className="chip">Nivå: {levelLabel[match.matchLevel]}</span>
       </div>
-      <div className="muted small">
-        {match.venue.facilityName}, {match.venue.pitchName} ({surfaceLabel[match.venue.surface].toLowerCase()}) · {match.venue.facilityAddress}
-      </div>
+      <div className="muted small"><VenueLine match={match} /></div>
       {match.status === 'PUBLISHED' && match.inquiriesCount > 0 && (
         <div className="small">{match.inquiriesCount} {match.inquiriesCount > 1 ? 'intresseanmälningar' : 'intresseanmälan'}</div>
       )}
