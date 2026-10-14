@@ -64,6 +64,7 @@ HTML-filerna öppnas i en webbläsare. `bpmn/matchborsen.bpmn` är processerna s
 (tre pooler med meddelandeflöden för händelserna), med en färdig bild i `bpmn/matchborsen.svg`.
 `dmn/matchborsen.dmn` är affärsreglerna som DMN 1.3-beslutstabeller för Camunda 8, med beslutsdiagrammet i
 `dmn/matchborsen.svg`.
+`demomanual.md` är manus för demon: nio scenarier med testanvändare, klick och tidsmaskinen.
 
 ```
 src/
