@@ -8,7 +8,7 @@ import { api } from '../api';
 import { useAction, useApi } from '../hooks';
 import { useSession } from '../session';
 import { RequireUser } from '../components/RequireUser';
-import { DateInput, ErrorBox, Field, Info, TimeInput, endTimeLabel, teamLabel } from '../components/ui';
+import { ErrorBox, Field, Info, TimeInput, endTimeLabel, teamLabel } from '../components/ui';
 
 type FacilityWithPitches = Facility & { pitches: Pitch[] };
 
@@ -145,7 +145,7 @@ function CreateMatchForm() {
           <fieldset>
             <legend>Önskad helgtid</legend>
             <Field label="Datum (lördag eller söndag)" hint={dateProblem ?? `Tidigast ${formatDateLong(earliest)}.`}>
-              <DateInput label="Datum" required value={f.date} onChange={(v) => set('date', v)} firstYear={Number(today.slice(0, 4))} />
+              <input type="date" required min={earliest} value={f.date} onChange={(e) => set('date', e.target.value)} aria-invalid={!!dateProblem} />
             </Field>
             {timeFields}
             <p className="muted small">Kansliet väljer plan och bekräftar tiden. Matchen publiceras på börsen när planen är tilldelad.</p>
@@ -168,7 +168,7 @@ function CreateMatchForm() {
               </select>
             </Field>
             <Field label="Datum">
-              <DateInput label="Datum" required value={f.date} onChange={(v) => set('date', v)} firstYear={Number(today.slice(0, 4))} />
+              <input type="date" required value={f.date} onChange={(e) => set('date', e.target.value)} />
             </Field>
             {timeFields}
           </fieldset>
