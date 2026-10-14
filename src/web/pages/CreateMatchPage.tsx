@@ -8,7 +8,7 @@ import { api } from '../api';
 import { useAction, useApi } from '../hooks';
 import { useSession } from '../session';
 import { RequireUser } from '../components/RequireUser';
-import { ErrorBox, Field, Info, TimeInput, endTimeLabel, teamLabel } from '../components/ui';
+import { DateInput, ErrorBox, Field, Info, TimeInput, endTimeLabel, teamLabel } from '../components/ui';
 
 type FacilityWithPitches = Facility & { pitches: Pitch[] };
 
@@ -19,6 +19,12 @@ export function CreateMatchPage() {
     </RequireUser>
   );
 }
+
+/** T.ex. "lördag 7 november 2026". */
+const formatDateLong = (date: string) =>
+  new Intl.DateTimeFormat('sv-SE', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' }).format(
+    new Date(`${date}T00:00:00Z`),
+  );
 
 /** BR-06: minsta ledtid för Spår 1. Servern kontrollerar samma regel. */
 const MIN_LEAD_DAYS = 21;
@@ -78,7 +84,8 @@ function CreateMatchForm() {
 
   // Spår 1: samma regler som servern (AC-101.2, AC-101.4), för direkt återkoppling.
   const today = utcToLocal(config?.now ?? new Date().toISOString()).date;
-  const earliest = addDaysToDate(today, MIN_LEAD_DAYS);
+  let earliest = addDaysToDate(today, MIN_LEAD_DAYS);
+  while (!isWeekendDate(earliest)) earliest = addDaysToDate(earliest, 1);
   const dateProblem =
     weekend && f.date
       ? !isWeekendDate(f.date)
@@ -137,8 +144,8 @@ function CreateMatchForm() {
         {weekend ? (
           <fieldset>
             <legend>Önskad helgtid</legend>
-            <Field label="Datum (lördag eller söndag)" hint={dateProblem ?? `Tidigast ${earliest}.`}>
-              <input type="date" required min={earliest} value={f.date} onChange={(e) => set('date', e.target.value)} aria-invalid={!!dateProblem} />
+            <Field label="Datum (lördag eller söndag)" hint={dateProblem ?? `Tidigast ${formatDateLong(earliest)}.`}>
+              <DateInput label="Datum" required value={f.date} onChange={(v) => set('date', v)} firstYear={Number(today.slice(0, 4))} />
             </Field>
             {timeFields}
             <p className="muted small">Kansliet väljer plan och bekräftar tiden. Matchen publiceras på börsen när planen är tilldelad.</p>
@@ -161,7 +168,7 @@ function CreateMatchForm() {
               </select>
             </Field>
             <Field label="Datum">
-              <input type="date" required value={f.date} onChange={(e) => set('date', e.target.value)} />
+              <DateInput label="Datum" required value={f.date} onChange={(v) => set('date', v)} firstYear={Number(today.slice(0, 4))} />
             </Field>
             {timeFields}
           </fieldset>
