@@ -1,0 +1,348 @@
+<!doctype html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Matchbörsens personas</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,600;8..60,700&family=Open+Sans:wght@400;600;700&family=JetBrains+Mono:wght@500&display=swap">
+<style>
+/* Layout: App Studio-liknande personalista. Utfällbara kort per persona, behörighetsmatris under. */
+:root {
+  --bg: #f4f6fa;
+  --surface: #ffffff;
+  --surface-2: #f1f3f8;
+  --fg: #1b2333;
+  --muted: #5c667a;
+  --line: #d9dee8;
+  --navy: #12305e;
+  --link: #2f5fbf;
+  --accent: #6a35c9;
+  --chip: #e9e3f8;
+  --chip-ink: #4b2596;
+  --yes: #1e7d43;
+  --yes-bg: #e2f3e8;
+  --part: #8a5a00;
+  --part-bg: #fdf1d6;
+  --no: #9aa3b3;
+  --av-teal: #1aa3a3;
+  --av-blue: #4a5fc1;
+  --av-yellow: #f2c230;
+  --av-orange: #f06a2a;
+  --av-indigo: #3d4fa8;
+  --av-grey: #6b7486;
+  --skin-1: #f2c9a5;
+  --skin-2: #b9825a;
+  --skin-3: #e0a979;
+  --hair: #3a2a20;
+  --shirt: #20304f;
+  --shadow: 0 1px 2px rgba(18, 48, 94, .08), 0 2px 8px rgba(18, 48, 94, .06);
+  --font-display: "Source Serif 4", Georgia, "Times New Roman", serif;
+  --font-body: "Open Sans", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #11151d; --surface: #1a202b; --surface-2: #222a37; --fg: #e6eaf2; --muted: #9aa4b6; --line: #2f3847;
+    --navy: #9cc0ff; --link: #8ab4ff; --accent: #b79bff; --chip: #2e2547; --chip-ink: #d3c4ff;
+    --yes: #6fd696; --yes-bg: #1c3526; --part: #f2c96b; --part-bg: #3a2f14; --no: #5d6676;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .4); color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #11151d; --surface: #1a202b; --surface-2: #222a37; --fg: #e6eaf2; --muted: #9aa4b6; --line: #2f3847;
+  --navy: #9cc0ff; --link: #8ab4ff; --accent: #b79bff; --chip: #2e2547; --chip-ink: #d3c4ff;
+  --yes: #6fd696; --yes-bg: #1c3526; --part: #f2c96b; --part-bg: #3a2f14; --no: #5d6676;
+  --shadow: 0 1px 2px rgba(0, 0, 0, .4); color-scheme: dark;
+}
+
+[hidden] { display: none !important; }
+body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 14px; line-height: 1.5; }
+.page {
+  max-width: 1180px; margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 20px 40px; display: grid; gap: 14px;
+}
+header { display: grid; gap: 6px; }
+.eyebrow { font-size: 12px; color: var(--muted); letter-spacing: .04em; }
+h1 { font-family: var(--font-display); font-weight: 700; font-size: clamp(26px, 4vw, 34px); color: var(--navy); margin: 0; text-wrap: balance; line-height: 1.15; }
+.intro { color: var(--muted); max-width: 72ch; margin: 0; }
+h2.section { font-family: var(--font-display); font-size: 22px; color: var(--navy); margin: 18px 0 0; }
+
+.persona { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; box-shadow: var(--shadow); }
+.persona > button {
+  all: unset; box-sizing: border-box; width: 100%; cursor: pointer; display: grid;
+  grid-template-columns: 64px minmax(0, 1fr) auto; gap: 14px; align-items: center; padding: 12px 16px;
+}
+.persona > button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
+.avatar { width: 64px; height: 64px; border-radius: 4px; overflow: hidden; display: block; }
+.avatar svg { width: 100%; height: 100%; display: block; }
+.kicker { font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.pname { font-size: 17px; font-weight: 600; color: var(--link); line-height: 1.3; }
+.pdesc { font-size: 13px; color: var(--fg); margin-top: 2px; }
+.toggle { font-size: 12px; color: var(--muted); white-space: nowrap; display: inline-flex; align-items: center; gap: 4px; }
+.toggle svg { width: 14px; height: 14px; transition: transform .15s; }
+.persona[data-open="true"] .toggle svg { transform: rotate(180deg); }
+@media (max-width: 560px) {
+  .persona > button { grid-template-columns: 52px minmax(0, 1fr); }
+  .avatar { width: 52px; height: 52px; }
+  .toggle { grid-column: 2; }
+}
+
+.body { border-top: 1px solid var(--line); padding: 14px 16px 16px; display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+.block { display: grid; gap: 6px; align-content: start; min-width: 0; }
+.block h3 { font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin: 0; }
+.block ul { margin: 0; padding-left: 18px; display: grid; gap: 3px; }
+.block li { font-size: 13px; }
+.ref { font-family: var(--font-mono); font-size: 11px; color: var(--chip-ink); background: var(--chip); border-radius: 99px; padding: 0 6px; margin-left: 4px; white-space: nowrap; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { font-size: 12px; padding: 1px 8px; border-radius: 99px; background: var(--surface-2); border: 1px solid var(--line); }
+.note { font-size: 12.5px; color: var(--muted); }
+.users { font-size: 13px; display: grid; gap: 2px; }
+.users b { font-weight: 600; }
+
+.matrix-wrap { overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; box-shadow: var(--shadow); }
+table { border-collapse: collapse; font-size: 13px; width: 100%; min-width: 760px; }
+th, td { padding: 7px 10px; border-bottom: 1px solid var(--line); text-align: center; vertical-align: middle; }
+th { font-size: 12px; color: var(--muted); font-weight: 600; background: var(--surface-2); }
+th:first-child, td:first-child { text-align: left; }
+tbody th { text-align: left; font-size: 11.5px; letter-spacing: .06em; text-transform: uppercase; background: var(--surface); color: var(--navy); padding-top: 12px; }
+tr:last-child td { border-bottom: 0; }
+.mark { display: inline-grid; place-items: center; min-width: 22px; height: 22px; border-radius: 99px; font-weight: 700; font-size: 12px; }
+.mark.yes { background: var(--yes-bg); color: var(--yes); }
+.mark.part { background: var(--part-bg); color: var(--part); padding: 0 6px; font-size: 11px; }
+.mark.no { color: var(--no); }
+.legend { display: flex; flex-wrap: wrap; gap: 8px 18px; font-size: 12.5px; color: var(--muted); align-items: center; }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+td small { display: block; color: var(--muted); font-size: 11.5px; }
+</style>
+</head>
+<body>
+
+<div class="page">
+  <header>
+    <div class="eyebrow">IFK Lidingö · Matchbörsen &amp; Planbokning · kravspecifikation v1.1.1</div>
+    <h1>Matchbörsens personas</h1>
+    <p class="intro">Vem som använder Matchbörsen och vad var och en kan göra. Klicka på en persona för att se uppgifter, sidor, e-postnotiser och testanvändare. Behörighetsmatrisen längst ner jämför alla.</p>
+  </header>
+
+  <div id="personas" style="display: grid; gap: 10px;"></div>
+
+  <h2 class="section">Behörigheter</h2>
+  <div class="legend">
+    <span><span class="mark yes">✓</span> Får göra det</span>
+    <span><span class="mark part">eget</span> Bara för egna lag eller matcher</span>
+    <span><span class="mark no">–</span> Får inte</span>
+  </div>
+  <div class="matrix-wrap"><table id="matrix"></table></div>
+</div>
+
+<script>
+// Tecknade avatarer: bakgrund, hudton, hårform. Inga riktiga personer.
+function avatar(bg, skin, hair, opts = {}) {
+  const hairPath = {
+    short: '<path d="M18 30c0-11 7-17 14-17s14 6 14 17c-3-6-8-8-14-8s-11 2-14 8z" fill="var(--hair)"/>',
+    long: '<path d="M16 34c0-14 7-21 16-21s16 7 16 21v14h-6V30c-3-4-6-6-10-6s-7 2-10 6v18h-6z" fill="var(--hair)"/>',
+    bun: '<circle cx="32" cy="11" r="5" fill="var(--hair)"/><path d="M18 30c0-11 7-16 14-16s14 5 14 16c-3-5-8-7-14-7s-11 2-14 7z" fill="var(--hair)"/>',
+    cap: '<path d="M17 28c0-10 7-15 15-15s15 5 15 15z" fill="var(--av-indigo)"/><rect x="30" y="25" width="22" height="4" rx="2" fill="var(--av-indigo)"/>',
+    grey: '<path d="M18 30c0-11 7-17 14-17s14 6 14 17c-3-6-8-8-14-8s-11 2-14 8z" fill="#c7ccd6"/>',
+  }[hair] ?? '';
+  const glasses = opts.glasses ? '<g fill="none" stroke="#1b2333" stroke-width="1.6"><circle cx="27" cy="32" r="4"/><circle cx="37" cy="32" r="4"/><path d="M31 32h2"/></g>' : '';
+  return `<svg viewBox="0 0 64 64" aria-hidden="true">
+    <rect width="64" height="64" fill="${bg}"/>
+    <path d="M10 64c2-12 11-18 22-18s20 6 22 18z" fill="${opts.shirt ?? 'var(--shirt)'}"/>
+    <rect x="28" y="40" width="8" height="8" fill="${skin}"/>
+    <ellipse cx="32" cy="31" rx="12" ry="14" fill="${skin}"/>
+    ${hairPath}${glasses}
+    <circle cx="27.5" cy="32" r="1.4" fill="#1b2333"/><circle cx="36.5" cy="32" r="1.4" fill="#1b2333"/>
+    <path d="M28 38c2 2 6 2 8 0" stroke="#1b2333" stroke-width="1.4" fill="none" stroke-linecap="round"/>
+  </svg>`;
+}
+function robot(bg) {
+  return `<svg viewBox="0 0 64 64" aria-hidden="true">
+    <rect width="64" height="64" fill="${bg}"/>
+    <rect x="16" y="18" width="32" height="26" rx="8" fill="#e6eaf2"/>
+    <rect x="21" y="25" width="22" height="11" rx="5" fill="#1b2333"/>
+    <circle cx="27" cy="30.5" r="2.2" fill="#6fd0ff"/><circle cx="37" cy="30.5" r="2.2" fill="#6fd0ff"/>
+    <path d="M32 18v-6" stroke="#e6eaf2" stroke-width="2"/><circle cx="32" cy="10" r="3" fill="#f2c230"/>
+    <path d="M14 64c1-10 8-16 18-16s17 6 18 16z" fill="#e6eaf2"/>
+    <circle cx="32" cy="56" r="4" fill="none" stroke="#6b7486" stroke-width="2"/><path d="M32 52v4l2 2" stroke="#6b7486" stroke-width="2" fill="none"/>
+  </svg>`;
+}
+
+const ref = (r) => `<span class="ref">${r}</span>`;
+
+const PERSONAS = [
+  {
+    id: 'ifk', name: 'Lagledare IFK Lidingö', av: avatar('var(--av-teal)', 'var(--skin-1)', 'long'),
+    desc: 'Ledare för ett IFK Lidingö-lag. Skapar matcher i Spår 1 och Spår 2, väljer motståndare, avbokar och bekräftar "Match genomförd". Behöver kansliets godkännande av kopplingen till laget.',
+    tasks: [
+      ['Skapa lagprofil eller koppla sig till ett lag', 'AC-U-002.1'],
+      ['Skapa match på egen träningstid (Spår 2)', 'A2'],
+      ['Begära helgtid via kansliet (Spår 1)', 'A1'],
+      ['Välja motståndare bland intresseanmälningarna', 'A6'],
+      ['Avboka matchen före starttid', 'A5, A8, A9'],
+      ['Bekräfta "Match genomförd" inom 48 h', 'A13'],
+      ['Anmäla intresse till andra lags matcher', 'AC-103.1'],
+      ['Lämna Fair Play-recension', 'C2'],
+    ],
+    pages: ['Börsen', 'Skapa match', 'Mina matcher', 'Fair Play', 'Mina lag'],
+    notes: ['#2 koppling godkänd', '#4 plan tilldelad', '#5 förfrågan avslagen', '#6 ny intresseanmälan', '#7 motståndare vald', '#9 återbud (akut)', '#11 påminnelse 18 dagar', '#12 återkallad', '#13 inställd (akut)', '#14 utgången', '#15–16 bekräfta genomförd', '#17 ej bekräftad', '#18 Fair Play'],
+    login: 'Google. Får rollen lagledare vid första inloggningen.',
+    users: [['Lena Lidingö', 'P2015 Blå, godkänd'], ['Fia Flicktränare', 'F2014, godkänd'], ['Per Pending', 'väntar på kansliet: får inte skapa matcher (AC-101.5)']],
+  },
+  {
+    id: 'office', name: 'Kanslipersonal', av: avatar('var(--av-blue)', 'var(--skin-2)', 'short'),
+    desc: 'IFK Lidingös kansli. Hanterar förfrågningar om helgtider, godkänner ledare för IFK Lidingö-lag och underhåller anläggningar och planer.',
+    tasks: [
+      ['Tilldela plan till en förfrågan om helgtid, med varning vid överlapp', 'B2'],
+      ['Avslå en förfrågan med orsak', 'B3'],
+      ['Ställa in en reserverad eller accepterad bokning med orsak', 'B10'],
+      ['Godkänna eller avslå ledarkopplingar till IFK Lidingö-lag', 'FR-U-003'],
+      ['Skapa, ändra och inaktivera anläggningar och planer', 'FR-B-207'],
+    ],
+    pages: ['Börsen', 'Kansli'],
+    notes: ['#1 koppling väntar på godkännande', '#3 ny förfrågan om helgtid'],
+    login: 'Google. Rollen kansli ges till adresser i OFFICE_EMAILS.',
+    users: [['Karin Kansli', 'kön, godkännanden och masterdata']],
+  },
+  {
+    id: 'ext', name: 'Lagledare externt lag', av: avatar('var(--av-yellow)', 'var(--skin-3)', 'cap'),
+    desc: 'Ledare för ett lag från en annan klubb. Skapar lagprofil utan godkännande, anmäler intresse till publicerade matcher, lämnar återbud och Fair Play-recensioner. Kan inte skapa matcher (BR-07).',
+    tasks: [
+      ['Skapa lagprofil, ingen godkännande krävs', 'AC-U-002.2'],
+      ['Anmäla intresse till matcher som laget matchar', 'AC-103.1, BR-09'],
+      ['Dra tillbaka sin anmälan innan laget valts', 'AC-103.3'],
+      ['Lämna återbud när laget valts', 'A7'],
+      ['Se hemmalagets kontaktuppgifter efter valet', 'AC-103.2'],
+      ['Lämna Fair Play-recension', 'C2'],
+    ],
+    pages: ['Börsen', 'Mina matcher', 'Fair Play', 'Mina lag'],
+    notes: ['#7 laget valt', '#8 annat lag valt', '#10 hemmalaget avbokar', '#12 återkallad', '#13 inställd (akut)', '#14 utgången', '#18 Fair Play'],
+    login: 'Google. Får rollen lagledare vid första inloggningen.',
+    users: [['Anna Lind', 'Hammarby IF P2015-11'], ['Erik Djurman', 'Djurgårdens IF P2016, visar ±1 år'], ['Sara Täby', 'Täby FK F2014'], ['Nora Ny', 'ny ledare utan lag']],
+  },
+  {
+    id: 'guest', name: 'Gäst', av: avatar('var(--av-orange)', 'var(--skin-2)', 'bun'),
+    desc: 'Besökare som inte är inloggad. Ser publicerade matcher på börsen och lagprofiler, men inga kontaktuppgifter. Måste logga in för att anmäla intresse.',
+    tasks: [
+      ['Se och filtrera publicerade matcher', 'AC-102.2'],
+      ['Se lagprofiler (bedömd nivå och Fair Play från 3 recensioner)', 'AC-303.2'],
+    ],
+    pages: ['Börsen', 'Lagprofil', 'Logga in'],
+    notes: [],
+    login: 'Ingen inloggning.',
+    users: [['Utloggad', 'öppna appen utan att logga in']],
+  },
+  {
+    id: 'admin', name: 'Administratör', av: avatar('var(--av-indigo)', 'var(--skin-1)', 'grey', { glasses: true }),
+    desc: 'Läser enskilda Fair Play-recensioner, som ingen annan får se. Hantering av raderingsbegäranden är ett förslag i specen och inte byggt än.',
+    tasks: [
+      ['Läsa alla enskilda Fair Play-recensioner', 'AC-302.4'],
+      ['Hantera raderingsbegäranden (inte byggt)', 'FR-U-004'],
+    ],
+    pages: ['Börsen', 'Admin'],
+    notes: [],
+    login: 'Google. Rollen administratör ges till adresser i ADMIN_EMAILS.',
+    users: [['Adam Admin', 'läser enskilda recensioner']],
+  },
+  {
+    id: 'system', name: 'Systemet', av: robot('var(--av-grey)'), kicker: 'Automatisk aktör',
+    desc: 'Schemaläggaren och outboxen. Levererar händelser mellan processerna och sköter frister och påminnelser utan att någon klickar. Står som "system" i revisionsloggen.',
+    tasks: [
+      ['Leverera händelser mellan Match, Planbokning och Fair Play', '4.0'],
+      ['Låta matcher utan motståndare utgå vid starttid', 'A12'],
+      ['Låta matcher utan bekräftelse utgå efter 48 h', 'A14'],
+      ['Återkalla helgtider vid 14-dagarsfristen', 'B7'],
+      ['Publicera eller låta Fair Play-recensioner gå ut efter 7 dagar', 'C4, C5'],
+      ['Skicka köad e-post var 5:e sekund, akut först', 'NFR-03'],
+    ],
+    pages: [],
+    notes: ['Skickar alla notiser i matrisen'],
+    login: 'Körs var 30:e sekund av Runtime.tick().',
+    users: [['Tidsmaskinen på /dev', 'flyttar klockan framåt för att prova frister']],
+  },
+];
+
+// Behörighetsmatris: [åtgärd, krav, ifk, office, ext, guest, admin]. y = ja, e = bara egna, n = nej.
+const MATRIX = [
+  ['Börsen'],
+  ['Se publicerade matcher', 'AC-102.2', 'y', 'y', 'y', 'y', 'y'],
+  ['Se kontaktuppgifter', 'AC-103.2', 'e', 'n', 'e', 'n', 'n'],
+  ['Anmäla och dra tillbaka intresse', 'AC-103.1', 'y', 'n', 'y', 'n', 'n'],
+  ['Matcher'],
+  ['Skapa match, Spår 2', 'A2', 'y', 'n', 'n', 'n', 'n'],
+  ['Begära helgtid, Spår 1', 'A1', 'y', 'n', 'n', 'n', 'n'],
+  ['Välja motståndare, avboka, bekräfta genomförd', 'A6, A8, A13', 'e', 'n', 'n', 'n', 'n'],
+  ['Lämna återbud', 'A7', 'e', 'n', 'e', 'n', 'n'],
+  ['Planbokning och masterdata'],
+  ['Tilldela, avslå och ställa in helgtider', 'B2, B3, B10', 'n', 'y', 'n', 'n', 'n'],
+  ['Underhålla anläggningar och planer', 'FR-B-207', 'n', 'y', 'n', 'n', 'n'],
+  ['Lag och konton'],
+  ['Skapa lagprofil', 'AC-U-002.1', 'y', 'n', 'y', 'n', 'n'],
+  ['Godkänna ledarkopplingar', 'FR-U-003', 'n', 'y', 'n', 'n', 'n'],
+  ['Fair Play'],
+  ['Lämna recension', 'C2', 'e', 'n', 'e', 'n', 'n'],
+  ['Se lagprofilens aggregat', 'AC-303.2', 'y', 'y', 'y', 'y', 'y'],
+  ['Läsa enskilda recensioner', 'AC-302.4', 'n', 'n', 'n', 'n', 'y'],
+];
+const COLS = ['Lagledare IFK Lidingö', 'Kansli', 'Lagledare externt lag', 'Gäst', 'Admin'];
+
+const chevron = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 6l4 4 4-4"/></svg>';
+let open = 'ifk';
+
+function render() {
+  document.getElementById('personas').innerHTML = PERSONAS.map((p) => {
+    const isOpen = open === p.id;
+    return `<article class="persona" data-open="${isOpen}">
+      <button aria-expanded="${isOpen}" aria-controls="body-${p.id}" data-id="${p.id}">
+        <span class="avatar">${p.av}</span>
+        <span>
+          <span class="kicker">${p.kicker ?? 'Persona'}</span>
+          <span class="pname" style="display:block">${p.name}</span>
+          <span class="pdesc" style="display:block">${p.desc}</span>
+        </span>
+        <span class="toggle">${isOpen ? 'Dölj' : 'Visa mer'} ${chevron}</span>
+      </button>
+      <div class="body" id="body-${p.id}" ${isOpen ? '' : 'hidden'}>
+        <div class="block"><h3>Kan göra</h3><ul>${p.tasks.map(([t, r]) => `<li>${t}${ref(r)}</li>`).join('')}</ul></div>
+        <div class="block"><h3>Sidor i appen</h3>
+          ${p.pages.length ? `<div class="chips">${p.pages.map((x) => `<span class="chip">${x}</span>`).join('')}</div>` : '<span class="note">Inget gränssnitt.</span>'}
+          <h3 style="margin-top:8px">Inloggning</h3><span class="note">${p.login}</span>
+        </div>
+        <div class="block"><h3>E-postnotiser</h3>
+          ${p.notes.length ? `<ul>${p.notes.map((x) => `<li>${x}</li>`).join('')}</ul>` : '<span class="note">Inga.</span>'}
+        </div>
+        <div class="block"><h3>Testanvändare</h3>
+          <div class="users">${p.users.map(([n, w]) => `<span><b>${n}</b> · ${w}</span>`).join('')}</div>
+        </div>
+      </div>
+    </article>`;
+  }).join('');
+}
+
+function renderMatrix() {
+  const mark = { y: '<span class="mark yes" title="Ja">✓</span>', e: '<span class="mark part" title="Bara egna">eget</span>', n: '<span class="mark no" title="Nej">–</span>' };
+  document.getElementById('matrix').innerHTML =
+    `<thead><tr><th>Åtgärd</th>${COLS.map((c) => `<th>${c}</th>`).join('')}</tr></thead><tbody>` +
+    MATRIX.map((r) => r.length === 1
+      ? `<tr><th colspan="${COLS.length + 1}">${r[0]}</th></tr>`
+      : `<tr><td>${r[0]}<small>${r[1]}</small></td>${r.slice(2).map((v) => `<td>${mark[v]}</td>`).join('')}</tr>`).join('') +
+    '</tbody>';
+}
+
+document.addEventListener('click', (ev) => {
+  const b = ev.target.closest('.persona > button');
+  if (!b) return;
+  open = open === b.dataset.id ? null : b.dataset.id;
+  render();
+  document.querySelector(`.persona > button[data-id="${b.dataset.id}"]`)?.focus({ preventScroll: true });
+});
+
+try { const h = location.hash.slice(1); if (PERSONAS.some((p) => p.id === h)) open = h; } catch (e) {}
+render();
+renderMatrix();
+</script>
+</body>
+</html>
